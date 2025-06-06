@@ -25,6 +25,7 @@ import PhonelinkIcon from '@mui/icons-material/Phonelink';
 
 const Blog: React.FC = () => {
   const theme = useTheme();
+  const [hasError, setHasError] = React.useState(false);
 
   useEffect(() => {
     console.log('Blog component mounted');
@@ -32,8 +33,16 @@ const Blog: React.FC = () => {
     console.log('Current theme mode:', theme.palette.mode);
   }, [theme.palette.mode]);
 
-  // Error boundary
-  const [hasError, setHasError] = React.useState(false);
+  // Error handling effect - moved before conditional return
+  useEffect(() => {
+    const handleError = (error: ErrorEvent) => {
+      console.error('Blog component error:', error);
+      setHasError(true);
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
 
   if (hasError) {
     return (
@@ -44,16 +53,6 @@ const Blog: React.FC = () => {
       </Box>
     );
   }
-
-  React.useEffect(() => {
-    const handleError = (error: ErrorEvent) => {
-      console.error('Blog component error:', error);
-      setHasError(true);
-    };
-
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
 
   const getIcon = (iconName: string) => {
     switch (iconName) {
