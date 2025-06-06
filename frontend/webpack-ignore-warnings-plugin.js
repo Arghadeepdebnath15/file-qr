@@ -14,4 +14,4 @@ class IgnoreSourceMapWarningsPlugin {
   }
 }
 
-module.exports = IgnoreSourceMapWarningsPlugin; 
+module.exports = IgnoreSourceMapWarningsPlugi

@@ -18,7 +18,7 @@ import WbSunnyRoundedIcon from '@mui/icons-material/WbSunnyRounded';
 import NightlightRoundIcon from '@mui/icons-material/NightlightRound';
 import FileUpload from './components/FileUpload';
 import UploadQRCode from './components/UploadQRCode';
-import RecentFiles from './components/RecentFiles';
+import ReceivedFiles from './components/ReceivedFiles';
 import Blog from './components/Blog';
 
 // Add Poppins font
@@ -267,13 +267,13 @@ function App() {
                 {tabValue === 0 && (
                   <Box sx={{ animation: 'fadeIn 0.5s ease-out' }}>
                     <FileUpload />
-                    <RecentFiles />
+                    <ReceivedFiles />
                   </Box>
                 )}
                 {tabValue === 1 && (
                   <Box sx={{ animation: 'fadeIn 0.5s ease-out' }}>
                     <UploadQRCode />
-                    <RecentFiles />
+                    <ReceivedFiles />
                   </Box>
                 )}
               </Box>

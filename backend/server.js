@@ -10,23 +10,53 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// CORS configuration
+app.use(cors({
+    origin: true, // Allow all origins in development
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 // Middleware
-app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://2023422375arghadeep:SjEckjBfyu8ECtBD@cluster0.y1rybwu.mongodb.net/qr-file-share?retryWrites=true&w=majority';
+// MongoDB connection with better error handling
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/qr-file-share';
 
 mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB Atlas connected successfully'))
-.catch((err) => console.log('MongoDB connection error:', err));
+.then(() => {
+    console.log('MongoDB connected successfully');
+})
+.catch((err) => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1); // Exit if MongoDB connection fails
+});
+
+// Handle MongoDB connection events
+mongoose.connection.on('error', (err) => {
+    console.error('MongoDB error after initial connection:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+    console.warn('MongoDB disconnected. Attempting to reconnect...');
+});
 
 // Routes
 app.use('/api/files', fileRoutes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ 
+        message: 'Something went wrong!',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+});
 
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {

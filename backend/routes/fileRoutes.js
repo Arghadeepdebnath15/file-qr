@@ -45,8 +45,18 @@ router.get('/recent', async (req, res) => {
         const files = await File.find()
             .sort({ uploadDate: -1 })  // Sort by upload date, newest first
             .limit(10);                // Limit to 10 most recent files
-        res.json(files);
+
+        // Add download URLs to the files
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const filesWithUrls = files.map(file => {
+            const fileObj = file.toObject();
+            fileObj.url = `${baseUrl}/api/files/download/${file.filename}`;
+            return fileObj;
+        });
+
+        res.json(filesWithUrls);
     } catch (error) {
+        console.error('Error fetching recent files:', error);
         res.status(500).json({ message: 'Error fetching recent files', error: error.message });
     }
 });
@@ -61,9 +71,23 @@ router.get('/recent/:deviceId', async (req, res) => {
             history = { fileIds: [] };
         }
 
-        res.json(history.fileIds);
+        // Sort files by upload date, newest first
+        const files = history.fileIds.sort((a, b) => 
+            new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
+        );
+
+        res.json(files);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching recent files', error: error.message });
+    }
+});
+
+// Mark all files as read (no device ID needed)
+router.post('/mark-all-read', async (req, res) => {
+    try {
+        res.json({ message: 'All files marked as read' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error marking files as read', error: error.message });
     }
 });
 
@@ -86,37 +110,22 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             path: req.file.path,
             size: req.file.size,
             mimetype: req.file.mimetype,
-            qrCode: qrCode
+            qrCode: qrCode,
+            uploadDate: new Date()
         });
 
         await file.save();
 
-        // Add to device's recent history if deviceId is provided
-        const deviceId = req.headers['device-id'];
-        if (deviceId) {
-            await RecentHistory.findOneAndUpdate(
-                { deviceId },
-                { 
-                    $push: { 
-                        fileIds: { 
-                            $each: [file._id],
-                            $position: 0,
-                            $slice: 10
-                        }
-                    }
-                },
-                { upsert: true }
-            );
-        }
-
         res.status(201).json({ file, qrCode });
     } catch (error) {
+        console.error('Upload error:', error);
         res.status(500).json({ message: 'Error uploading file', error: error.message });
     }
 });
 
 // Mobile upload page route
 router.get('/upload-page', (req, res) => {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
     // Send a simple HTML form for mobile uploads
     const html = `
     <!DOCTYPE html>
@@ -164,6 +173,12 @@ router.get('/upload-page', (req, res) => {
                 text-align: center;
                 color: #666;
             }
+            .error {
+                color: #f44336;
+            }
+            .success {
+                color: #4caf50;
+            }
             .files-list {
                 margin-top: 20px;
                 border-top: 1px solid #eee;
@@ -196,6 +211,8 @@ router.get('/upload-page', (req, res) => {
             <div id="filesList" class="files-list"></div>
         </div>
         <script>
+            const API_BASE_URL = '${baseUrl}';
+
             // Function to format date
             function formatDate(dateString) {
                 const date = new Date(dateString);
@@ -205,7 +222,10 @@ router.get('/upload-page', (req, res) => {
             // Function to fetch and display recent files
             async function fetchRecentFiles() {
                 try {
-                    const response = await fetch('/api/files/recent');
+                    const response = await fetch(\`\${API_BASE_URL}/api/files/recent\`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch files');
+                    }
                     const files = await response.json();
                     const filesList = document.getElementById('filesList');
                     
@@ -222,37 +242,43 @@ router.get('/upload-page', (req, res) => {
                     \`).join('');
                 } catch (error) {
                     console.error('Error fetching files:', error);
+                    document.getElementById('filesList').innerHTML = \`
+                        <div class="error">Error fetching files: \${error.message}</div>
+                    \`;
                 }
             }
 
-            // Fetch files on page load
+            // Fetch files on page load and every 5 seconds
             fetchRecentFiles();
+            setInterval(fetchRecentFiles, 5000);
 
             document.getElementById('uploadForm').onsubmit = async (e) => {
                 e.preventDefault();
                 const status = document.getElementById('status');
                 status.textContent = 'Uploading...';
+                status.className = 'status';
                 
                 const formData = new FormData(e.target);
                 try {
-                    const response = await fetch('/api/files/upload', {
+                    const response = await fetch(\`\${API_BASE_URL}/api/files/upload\`, {
                         method: 'POST',
                         body: formData
                     });
-                    const data = await response.json();
-                    if (response.ok) {
-                        status.textContent = 'File uploaded successfully!';
-                        status.style.color = '#4caf50';
-                        // Refresh the files list
-                        fetchRecentFiles();
-                        // Reset the form
-                        e.target.reset();
-                    } else {
-                        throw new Error(data.message || 'Upload failed');
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Upload failed');
                     }
+
+                    const data = await response.json();
+                    status.innerHTML = '<div class="success">File uploaded successfully!</div>';
+                    // Refresh the files list
+                    fetchRecentFiles();
+                    // Reset the form
+                    e.target.reset();
                 } catch (error) {
-                    status.textContent = 'Error: ' + error.message;
-                    status.style.color = '#f44336';
+                    console.error('Upload error:', error);
+                    status.innerHTML = \`<div class="error">Error: \${error.message}</div>\`;
                 }
             };
         </script>
