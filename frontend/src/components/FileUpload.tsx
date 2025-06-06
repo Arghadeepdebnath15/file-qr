@@ -13,12 +13,20 @@ import {
   alpha,
   Snackbar,
   Alert,
+  IconButton,
+  Tooltip,
+  ButtonGroup,
+  Paper,
+  Fade,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import ShareIcon from '@mui/icons-material/Share';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import QRCode from 'react-qr-code';
 import axios from 'axios';
 import { API_URL, CONFIG } from '../config';
+import { Zoom } from '@mui/material';
 
 interface ErrorState {
   show: boolean;
@@ -35,6 +43,7 @@ const FileUpload: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<ErrorState>({ show: false, message: '', severity: 'error' });
+  const [shareError, setShareError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const theme = useTheme();
 
@@ -202,6 +211,62 @@ const FileUpload: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      // Try using the Clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      
+      // Fallback: Create a temporary textarea element
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      try {
+        document.execCommand('copy');
+        textArea.remove();
+        return true;
+      } catch (err) {
+        textArea.remove();
+        return false;
+      }
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const handleShare = async () => {
+    if (!downloadUrl) return;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Download File',
+          text: 'Scan this QR code or use the link to download the file',
+          url: downloadUrl,
+        });
+      } else {
+        const copied = await copyToClipboard(downloadUrl);
+        if (copied) {
+          setError({ show: true, message: 'Link copied to clipboard!', severity: 'success' });
+        } else {
+          throw new Error('Failed to copy to clipboard');
+        }
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+      setShareError('Failed to share');
+      setTimeout(() => setShareError(''), 3000);
+    }
+  };
+
   return (
     <>
       <Card
@@ -332,47 +397,210 @@ const FileUpload: React.FC = () => {
         onClose={() => setShowQR(false)} 
         maxWidth="sm" 
         fullWidth
+        TransitionComponent={Zoom}
         PaperProps={{
+          elevation: 24,
           sx: {
-            borderRadius: '16px',
-            p: 2,
+            borderRadius: '24px',
+            p: 3,
+            background: theme.palette.mode === 'dark'
+              ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.paper, 0.8)} 100%)`
+              : 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%)',
+            backdropFilter: 'blur(20px)',
+            overflow: 'hidden',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
+              opacity: 1,
+              transition: 'opacity 0.4s ease',
+            },
           },
         }}
       >
-        <DialogTitle sx={{ textAlign: 'center', fontWeight: 600 }}>
-          Scan QR Code to Download
+        <DialogTitle 
+          sx={{ 
+            textAlign: 'center', 
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            p: 0,
+            mb: 3,
+            position: 'relative',
+          }}
+        >
+          <Typography 
+            variant="h5"
+            sx={{
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(45deg, #768fff 30%, #b47cff 90%)'
+                : 'linear-gradient(45deg, #2962ff 30%, #7c4dff 90%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontWeight: 600,
+              letterSpacing: '0.5px',
+            }}
+          >
+            Scan QR Code to Download
+          </Typography>
+          <ButtonGroup 
+            variant="outlined" 
+            size="small"
+            sx={{
+              '& .MuiButtonGroup-grouped': {
+                borderColor: theme.palette.mode === 'dark' 
+                  ? alpha(theme.palette.primary.main, 0.3)
+                  : alpha(theme.palette.primary.main, 0.2),
+                '&:hover': {
+                  borderColor: theme.palette.primary.main,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                },
+              },
+            }}
+          >
+            <Tooltip title="Copy Link" arrow>
+              <IconButton 
+                onClick={async () => {
+                  const copied = await copyToClipboard(downloadUrl);
+                  if (copied) {
+                    setError({ show: true, message: 'Link copied to clipboard!', severity: 'success' });
+                  } else {
+                    setShareError('Failed to copy to clipboard');
+                    setTimeout(() => setShareError(''), 3000);
+                  }
+                }}
+                size="small"
+                sx={{
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                  },
+                }}
+              >
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Share" arrow>
+              <IconButton 
+                onClick={handleShare}
+                size="small"
+                sx={{
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                  },
+                }}
+              >
+                <ShareIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </ButtonGroup>
         </DialogTitle>
-        <DialogContent sx={{ textAlign: 'center', pb: 4 }}>
+        <DialogContent sx={{ textAlign: 'center', p: 0 }}>
           {qrCode && (
-            <Box sx={{ mt: 2 }}>
-              <Box 
-                sx={{ 
-                  p: 4, 
-                  bgcolor: 'white',
-                  borderRadius: '16px',
-                  display: 'inline-block',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-                }}
-              >
-                <QRCode value={downloadUrl} size={256} />
+            <Fade in timeout={500}>
+              <Box sx={{ mt: 2 }}>
+                <Paper
+                  elevation={4}
+                  sx={{
+                    p: 4,
+                    bgcolor: '#fff',
+                    borderRadius: '20px',
+                    display: 'inline-block',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'scale(1.02)',
+                      boxShadow: theme.shadows[8],
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: -100,
+                      left: -100,
+                      right: -100,
+                      bottom: -100,
+                      background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.1)} 0%, transparent 70%)`,
+                      opacity: 0,
+                      transition: 'opacity 0.3s ease',
+                    },
+                    '&:hover::before': {
+                      opacity: 1,
+                    },
+                  }}
+                >
+                  <QRCode value={downloadUrl} size={256} />
+                </Paper>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    mt: 4, 
+                    mb: 2, 
+                    fontWeight: 500,
+                    color: theme.palette.text.primary,
+                    opacity: 0.9,
+                  }}
+                >
+                  Scan this QR code to download the file
+                </Typography>
+                <Paper
+                  elevation={2}
+                  sx={{ 
+                    mt: 2,
+                    p: 2,
+                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                    borderRadius: 2,
+                    display: 'inline-block',
+                    maxWidth: '100%',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: '1px solid',
+                    borderColor: alpha(theme.palette.primary.main, 0.1),
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      bgcolor: alpha(theme.palette.primary.main, 0.08),
+                      transform: 'translateY(-2px)',
+                    },
+                  }}
+                >
+                  <Typography 
+                    variant="body2" 
+                    color="primary"
+                    sx={{ 
+                      wordBreak: 'break-all',
+                      fontFamily: 'monospace',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {downloadUrl}
+                  </Typography>
+                </Paper>
+                {shareError && (
+                  <Fade in timeout={200}>
+                    <Typography 
+                      variant="body2" 
+                      color="error" 
+                      sx={{ 
+                        mt: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 1,
+                      }}
+                    >
+                      {shareError}
+                    </Typography>
+                  </Fade>
+                )}
               </Box>
-              <Typography variant="body1" sx={{ mt: 3, mb: 1, fontWeight: 500 }}>
-                Scan this QR code to download the file
-              </Typography>
-              <Typography 
-                variant="body2" 
-                color="primary" 
-                sx={{ 
-                  mt: 1,
-                  p: 2,
-                  bgcolor: alpha('#2962ff', 0.05),
-                  borderRadius: 2,
-                  display: 'inline-block',
-                }}
-              >
-                {downloadUrl}
-              </Typography>
-            </Box>
+            </Fade>
           )}
         </DialogContent>
       </Dialog>

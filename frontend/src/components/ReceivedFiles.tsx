@@ -339,18 +339,19 @@ const ReceivedFiles: React.FC = () => {
                     </Typography>
                   }
                   secondary={
-                    <Box sx={{ 
-                      display: 'flex', 
-                      flexDirection: { xs: 'column', sm: 'row' },
-                      gap: { xs: 0.5, sm: 2 },
-                      color: 'text.secondary',
-                      '& > span': {
-                        fontSize: '0.875rem',
-                      }
-                    }}>
-                      <span>{formatFileSize(file.size)}</span>
-                      <span>{formatDate(file.uploadDate)}</span>
-                    </Box>
+                    <Typography component="div" variant="body2" color="text.secondary">
+                      <Box sx={{ 
+                        display: 'flex', 
+                        flexDirection: { xs: 'column', sm: 'row' },
+                        gap: { xs: 0.5, sm: 2 },
+                        '& > span': {
+                          fontSize: '0.875rem',
+                        }
+                      }}>
+                        <span>{formatFileSize(file.size)}</span>
+                        <span>{formatDate(file.uploadDate)}</span>
+                      </Box>
+                    </Typography>
                   }
                 />
               </Box>
