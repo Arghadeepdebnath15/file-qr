@@ -44,23 +44,28 @@ const MONGODB_URI = process.env.NODE_ENV === 'production'
 const mongooseOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-    socketTimeoutMS: 45000, // Close sockets after 45s
-    family: 4 // Use IPv4, skip trying IPv6
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    family: 4
 };
 
 mongoose.connect(MONGODB_URI, mongooseOptions)
 .then(() => {
-    console.log('MongoDB connected successfully to:', MONGODB_URI);
+    // Don't log the full connection string in production
+    console.log('MongoDB connected successfully to:', 
+        process.env.NODE_ENV === 'production' 
+            ? '[PRODUCTION_DB]' 
+            : MONGODB_URI
+    );
 })
 .catch((err) => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1); // Exit if MongoDB connection fails
+    console.error('MongoDB connection error:', err.message);
+    process.exit(1);
 });
 
 // Handle MongoDB connection events
 mongoose.connection.on('error', (err) => {
-    console.error('MongoDB error after initial connection:', err);
+    console.error('MongoDB error after initial connection:', err.message);
 });
 
 mongoose.connection.on('disconnected', () => {
@@ -81,11 +86,22 @@ app.use((err, req, res, next) => {
 
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
+    // Ensure the build directory exists
+    const buildPath = path.join(__dirname, '../frontend/build');
+    
     // Set static folder
-    app.use(express.static(path.join(__dirname, '../frontend/build')));
+    app.use(express.static(buildPath));
 
     app.get('*', (req, res) => {
-        res.sendFile(path.resolve(__dirname, '../frontend/build', 'index.html'));
+        const indexPath = path.join(buildPath, 'index.html');
+        // Check if the file exists before sending
+        if (require('fs').existsSync(indexPath)) {
+            res.sendFile(indexPath);
+        } else {
+            res.status(404).json({ 
+                message: 'Frontend build not found. Please ensure the frontend is built before starting the server.'
+            });
+        }
     });
 }
 
