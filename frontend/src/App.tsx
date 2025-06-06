@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { 
   Container, 
   ThemeProvider, 
@@ -112,11 +112,11 @@ function App() {
     setTabValue(newValue);
   };
 
-  const toggleColorMode = () => {
+  const toggleColorMode = useCallback(() => {
     const newMode = mode === 'light' ? 'dark' : 'light';
     setMode(newMode);
     localStorage.setItem('themeMode', newMode);
-  };
+  }, [mode]);
 
   const MainContent = React.useMemo(() => {
     return (

@@ -7,14 +7,12 @@ import {
   ListItem,
   ListItemText,
   Divider,
-  Grow,
   Badge,
   IconButton,
   alpha,
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import NoFilesIcon from '@mui/icons-material/FileCopy';
-import NotificationsIcon from '@mui/icons-material/Notifications';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { useTheme } from '@mui/material/styles';
 import { API_URL } from '../config';
@@ -41,11 +39,26 @@ const ReceivedFiles: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${API_URL}/api/files/recent`);
+      console.log('Fetching files from:', `${API_URL}/api/files/recent`);
+      
+      const response = await fetch(`${API_URL}/api/files/recent`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to fetch files');
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
+      
       const data = await response.json();
+      
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid response format: expected an array');
+      }
       
       // Mark files as new if they were uploaded in the last 5 minutes
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -57,7 +70,10 @@ const ReceivedFiles: React.FC = () => {
       setFiles(processedFiles);
       setNewFilesCount(processedFiles.filter((f: FileInfo) => f.isNew).length);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const errorMessage = err instanceof Error 
+        ? `Error: ${err.message}. Backend URL: ${API_URL}`
+        : 'An unknown error occurred';
+      setError(errorMessage);
       console.error('Error fetching files:', err);
     } finally {
       setLoading(false);
@@ -148,14 +164,14 @@ const ReceivedFiles: React.FC = () => {
                   </Typography>
                 }
                 secondary={
-                  <Box sx={{ mt: 0.5 }}>
-                    <Typography variant="body2" color="text.secondary">
+                  <>
+                    <Typography variant="body2" component="span" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                       Size: {formatFileSize(file.size)}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" component="span" color="text.secondary" display="block">
                       Uploaded: {formatDate(file.uploadDate)}
                     </Typography>
-                  </Box>
+                  </>
                 }
               />
             </ListItem>

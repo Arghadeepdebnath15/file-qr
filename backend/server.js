@@ -11,26 +11,47 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // CORS configuration
-app.use(cors({
-    origin: ['http://localhost:3000', 'https://qr-file-share-5ri5.onrender.com'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id']
-}));
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://qr-file-share-5ri5.onrender.com']
+    : [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://192.168.1.4:3000',
+        'http://localhost:5000',
+        'http://127.0.0.1:5000',
+        'http://192.168.1.4:5000'
+      ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id']
+};
+
+app.use(cors(corsOptions));
+
+// Add CORS preflight
+app.options('*', cors(corsOptions));
 
 // Middleware
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // MongoDB connection with better error handling
-const MONGODB_URI = 'mongodb://localhost:27017/qr-file-share';
+const MONGODB_URI = process.env.NODE_ENV === 'production'
+    ? process.env.MONGODB_URI
+    : 'mongodb://localhost:27017/qr-file-share';
 
-mongoose.connect(MONGODB_URI, {
+// Add connection options
+const mongooseOptions = {
     useNewUrlParser: true,
-    useUnifiedTopology: true
-})
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000, // Close sockets after 45s
+    family: 4 // Use IPv4, skip trying IPv6
+};
+
+mongoose.connect(MONGODB_URI, mongooseOptions)
 .then(() => {
-    console.log('MongoDB connected successfully');
+    console.log('MongoDB connected successfully to:', MONGODB_URI);
 })
 .catch((err) => {
     console.error('MongoDB connection error:', err);

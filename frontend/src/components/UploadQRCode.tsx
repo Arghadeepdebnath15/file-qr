@@ -5,7 +5,6 @@ import QRCode from 'react-qr-code';
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import ScannerIcon from '@mui/icons-material/Scanner';
 import { API_URL } from '../config';
 
 const UploadQRCode: React.FC = () => {
