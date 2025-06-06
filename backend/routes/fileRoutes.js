@@ -178,7 +178,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
 // Mobile upload page route
 router.get('/upload-page', (req, res) => {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getBaseUrl(req);
     // Send a simple HTML form for mobile uploads
     const html = `
     <!DOCTYPE html>
@@ -186,6 +186,7 @@ router.get('/upload-page', (req, res) => {
     <head>
         <title>Upload File</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -247,9 +248,25 @@ router.get('/upload-page', (req, res) => {
             .file-name {
                 font-weight: 500;
             }
-            .file-date {
-                color: #666;
-                font-size: 0.9em;
+            .loading {
+                display: none;
+                text-align: center;
+                margin: 20px 0;
+            }
+            .loading.show {
+                display: block;
+            }
+            .qr-code {
+                text-align: center;
+                margin: 20px 0;
+                display: none;
+            }
+            .qr-code.show {
+                display: block;
+            }
+            .qr-code img {
+                max-width: 200px;
+                height: auto;
             }
         </style>
     </head>
@@ -257,83 +274,105 @@ router.get('/upload-page', (req, res) => {
         <div class="upload-container">
             <h1>Upload File</h1>
             <form id="uploadForm" enctype="multipart/form-data">
-                <input type="file" name="file" class="file-input" required>
+                <input type="file" id="file" name="file" class="file-input" required>
                 <button type="submit" class="submit-btn">Upload</button>
             </form>
+            <div id="loading" class="loading">
+                Uploading file...
+            </div>
             <div id="status" class="status"></div>
-            <div id="filesList" class="files-list"></div>
+            <div id="qrCode" class="qr-code"></div>
+            <div id="recentFiles" class="files-list"></div>
         </div>
+
         <script>
-            const API_BASE_URL = '${baseUrl}';
+            const baseUrl = '${baseUrl}';
+            const uploadForm = document.getElementById('uploadForm');
+            const loadingDiv = document.getElementById('loading');
+            const statusDiv = document.getElementById('status');
+            const qrCodeDiv = document.getElementById('qrCode');
+            const recentFilesDiv = document.getElementById('recentFiles');
 
-            // Function to format date
-            function formatDate(dateString) {
-                const date = new Date(dateString);
-                return date.toLocaleString();
-            }
-
-            // Function to fetch and display recent files
             async function fetchRecentFiles() {
                 try {
-                    const response = await fetch(\`\${API_BASE_URL}/api/files/recent\`);
+                    const response = await fetch(\`\${baseUrl}/api/files/recent\`, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
                     if (!response.ok) {
-                        throw new Error('Failed to fetch files');
-                    }
-                    const files = await response.json();
-                    const filesList = document.getElementById('filesList');
-                    
-                    if (files.length === 0) {
-                        filesList.innerHTML = '<div style="text-align: center; color: #666;">No files uploaded yet</div>';
-                        return;
+                        throw new Error(\`HTTP error! status: \${response.status}\`);
                     }
 
-                    filesList.innerHTML = files.map(file => \`
-                        <div class="file-item">
-                            <div class="file-name">\${file.originalName}</div>
-                            <div class="file-date">\${formatDate(file.uploadDate)}</div>
-                        </div>
-                    \`).join('');
+                    const files = await response.json();
+                    recentFilesDiv.innerHTML = '<h2>Recent Files</h2>' + 
+                        files.map(file => \`
+                            <div class="file-item">
+                                <span class="file-name">\${file.originalName}</span>
+                                <a href="\${file.url}" target="_blank">Download</a>
+                            </div>
+                        \`).join('');
                 } catch (error) {
                     console.error('Error fetching files:', error);
-                    document.getElementById('filesList').innerHTML = \`
-                        <div class="error">Error fetching files: \${error.message}</div>
-                    \`;
+                    recentFilesDiv.innerHTML = '<p class="error">Error loading recent files</p>';
                 }
             }
 
-            // Fetch files on page load and every 5 seconds
-            fetchRecentFiles();
-            setInterval(fetchRecentFiles, 5000);
-
-            document.getElementById('uploadForm').onsubmit = async (e) => {
+            uploadForm.onsubmit = async (e) => {
                 e.preventDefault();
-                const status = document.getElementById('status');
-                status.textContent = 'Uploading...';
-                status.className = 'status';
+                const fileInput = document.getElementById('file');
+                const file = fileInput.files[0];
                 
-                const formData = new FormData(e.target);
+                if (!file) {
+                    statusDiv.innerHTML = '<p class="error">Please select a file</p>';
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                loadingDiv.classList.add('show');
+                statusDiv.innerHTML = '';
+                qrCodeDiv.innerHTML = '';
+                qrCodeDiv.classList.remove('show');
+
                 try {
-                    const response = await fetch(\`\${API_BASE_URL}/api/files/upload\`, {
+                    const response = await fetch(\`\${baseUrl}/api/files/upload\`, {
                         method: 'POST',
                         body: formData
                     });
-                    
+
                     if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.message || 'Upload failed');
+                        const error = await response.json();
+                        throw new Error(error.message || 'Upload failed');
                     }
 
                     const data = await response.json();
-                    status.innerHTML = '<div class="success">File uploaded successfully!</div>';
-                    // Refresh the files list
+                    
+                    // Display success message
+                    statusDiv.innerHTML = '<p class="success">File uploaded successfully!</p>';
+                    
+                    // Display QR code
+                    qrCodeDiv.innerHTML = \`<img src="\${data.qrCode}" alt="QR Code">\`;
+                    qrCodeDiv.classList.add('show');
+                    
+                    // Clear file input
+                    fileInput.value = '';
+                    
+                    // Refresh recent files list
                     fetchRecentFiles();
-                    // Reset the form
-                    e.target.reset();
                 } catch (error) {
                     console.error('Upload error:', error);
-                    status.innerHTML = \`<div class="error">Error: \${error.message}</div>\`;
+                    statusDiv.innerHTML = \`<p class="error">\${error.message || 'Error uploading file'}</p>\`;
+                } finally {
+                    loadingDiv.classList.remove('show');
                 }
             };
+
+            // Initial fetch of recent files
+            fetchRecentFiles();
         </script>
     </body>
     </html>
@@ -448,4 +487,5 @@ router.post('/add-to-recent/:deviceId', async (req, res) => {
     }
 });
 
+module.exports = router; 
 module.exports = router; 

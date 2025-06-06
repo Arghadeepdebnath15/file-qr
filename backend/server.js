@@ -10,6 +10,19 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Force HTTPS in production
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    // Check if the request is already HTTPS or is from a proxy that used HTTPS
+    if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+      next();
+    } else {
+      // Redirect to HTTPS
+      res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+  });
+}
+
 // CORS configuration
 const corsOptions = {
   origin: true, // Allow all origins

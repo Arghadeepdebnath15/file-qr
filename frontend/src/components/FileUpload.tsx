@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -17,8 +17,8 @@ import {
 import { useTheme } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import QRCode from 'react-qr-code';
-import axios from 'axios';
-import { API_URL, CONFIG } from '../config';
+import { useDropzone } from 'react-dropzone';
+import { API_ENDPOINTS, makeApiRequest } from '../config/api';
 
 interface ErrorState {
   show: boolean;
@@ -26,7 +26,11 @@ interface ErrorState {
   severity: 'error' | 'warning' | 'info' | 'success';
 }
 
-const FileUpload: React.FC = () => {
+interface FileUploadProps {
+  onUploadSuccess: () => void;
+}
+
+const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState<string>('');
@@ -35,7 +39,7 @@ const FileUpload: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<ErrorState>({ show: false, message: '', severity: 'error' });
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const theme = useTheme();
 
   const validateFile = (file: File): string | null => {
@@ -60,43 +64,33 @@ const FileUpload: React.FC = () => {
     return null;
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    
-    const validationError = validateFile(droppedFile);
-    if (validationError) {
-      setError({ show: true, message: validationError, severity: 'error' });
-      return;
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+
+    const file = acceptedFiles[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setLoading(true);
+    setError({ show: false, message: '', severity: 'error' });
+
+    try {
+      await makeApiRequest(API_ENDPOINTS.UPLOAD, {
+        method: 'POST',
+        body: formData,
+      });
+      onUploadSuccess();
+    } catch (err) {
+      setError({ show: true, message: err instanceof Error ? err.message : 'Failed to upload file', severity: 'error' });
+    } finally {
+      setLoading(false);
     }
-    
-    setFile(droppedFile);
-  };
+  }, [onUploadSuccess]);
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      
-      const validationError = validateFile(selectedFile);
-      if (validationError) {
-        setError({ show: true, message: validationError, severity: 'error' });
-        return;
-      }
-      
-      setFile(selectedFile);
-    }
-  };
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    multiple: false
+  });
 
   const getDeviceId = () => {
     let deviceId = localStorage.getItem('deviceId');
@@ -223,10 +217,7 @@ const FileUpload: React.FC = () => {
             transform: 'translateY(-2px)',
           },
         }}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onClick={() => fileInputRef.current?.click()}
+        {...getRootProps()}
       >
         <CardContent 
           sx={{ 
@@ -241,7 +232,7 @@ const FileUpload: React.FC = () => {
           <input
             type="file"
             ref={fileInputRef}
-            onChange={handleFileSelect}
+            {...getInputProps()}
             style={{ display: 'none' }}
           />
           <CloudUploadIcon 
