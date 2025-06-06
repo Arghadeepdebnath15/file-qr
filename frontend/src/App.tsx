@@ -10,7 +10,6 @@ import {
   Paper,
   Typography,
   Divider,
-  Grid as MuiGrid,
   StyledEngineProvider,
   IconButton,
   useMediaQuery
