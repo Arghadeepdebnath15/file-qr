@@ -137,25 +137,32 @@ const ReceivedFiles: React.FC = () => {
     }
   }, []); // Empty dependency array since we're using refs
 
+  // Setup polling with cleanup
   useEffect(() => {
-    isMountedRef.current = true;
-    
-    // Initial fetch
-    fetchFiles();
-    
-    // Set up polling interval
-    const intervalId = setInterval(() => {
-      if (isMountedRef.current) {
-        fetchFiles();
-      }
-    }, CONFIG.POLL_INTERVAL);
+    const startPolling = async () => {
+      isMountedRef.current = true;
+      await fetchFiles(); // Initial fetch
+      
+      // Set up polling interval
+      const intervalId = setInterval(async () => {
+        if (isMountedRef.current) {
+          await fetchFiles();
+        }
+      }, CONFIG.POLL_INTERVAL);
 
-    // Cleanup
-    return () => {
-      isMountedRef.current = false;
-      clearInterval(intervalId);
+      // Cleanup function
+      return () => {
+        isMountedRef.current = false;
+        clearInterval(intervalId);
+      };
     };
-  }, []); // Empty dependency array since fetchFiles has no dependencies
+
+    // Start polling and store cleanup function
+    const cleanup = startPolling();
+    return () => {
+      cleanup.then(cleanupFn => cleanupFn());
+    };
+  }, [fetchFiles]); // Include fetchFiles in dependencies
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
