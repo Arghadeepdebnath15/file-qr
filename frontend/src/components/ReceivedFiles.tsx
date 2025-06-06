@@ -72,7 +72,12 @@ const ReceivedFiles: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${API_URL}/api/files/recent`, {
+      const deviceId = localStorage.getItem('deviceId');
+      if (!deviceId) {
+        throw new Error('Device ID not found');
+      }
+
+      const response = await fetch(`${API_URL}/api/files/recent/${deviceId}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

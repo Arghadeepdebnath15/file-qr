@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -47,27 +47,18 @@ const FileUpload: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const theme = useTheme();
 
-  const validateFile = (file: File): string | null => {
+  const validateFile = useCallback((file: File): string | null => {
     if (file.size > CONFIG.MAX_FILE_SIZE) {
       return `File size exceeds ${CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB limit`;
     }
 
-    // Check if file type is allowed
     const fileType = file.type || '';
-    const isAllowed = CONFIG.ALLOWED_FILE_TYPES.some(type => {
-      if (type.endsWith('/*')) {
-        // Handle wildcard mime types (e.g., 'image/*')
-        return fileType.startsWith(type.replace('/*', '/'));
-      }
-      return type === fileType;
-    });
+    const isAllowed = CONFIG.ALLOWED_FILE_TYPES.some(type => 
+      type.endsWith('/*') ? fileType.startsWith(type.replace('/*', '/')) : type === fileType
+    );
 
-    if (!isAllowed) {
-      return 'File type not allowed';
-    }
-
-    return null;
-  };
+    return isAllowed ? null : 'File type not allowed';
+  }, []);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -116,92 +107,132 @@ const FileUpload: React.FC = () => {
     return deviceId;
   };
 
-  const handleUpload = async () => {
-    if (!file) return;
-
+  const uploadFile = useCallback(async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
+    
+    const deviceId = getDeviceId();
+    const chunkSize = 1024 * 1024 * 2; // 2MB chunks for better performance
+    const totalChunks = Math.ceil(file.size / chunkSize);
+    
+    try {
+      if (file.size > chunkSize && totalChunks > 1) {
+        // Large file - use chunked upload
+        const chunks: Blob[] = [];
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * chunkSize;
+          const end = Math.min(start + chunkSize, file.size);
+          chunks.push(file.slice(start, end));
+        }
+
+        let uploadedChunks = 0;
+        const chunkPromises = chunks.map(async (chunk, index) => {
+          const chunkForm = new FormData();
+          chunkForm.append('file', chunk, `${file.name}.part${index}`);
+          chunkForm.append('totalChunks', totalChunks.toString());
+          chunkForm.append('chunkIndex', index.toString());
+          chunkForm.append('originalName', file.name);
+
+          const response = await axios.post(`${API_URL}/api/files/upload-chunk`, chunkForm, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+              'Device-Id': deviceId,
+              'Accept': 'application/json'
+            },
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                uploadedChunks++;
+                const totalProgress = ((uploadedChunks / totalChunks) * 100);
+                setUploadProgress(Math.round(totalProgress));
+              }
+            },
+          });
+
+          return response.data;
+        });
+
+        // Upload all chunks in parallel
+        const results = await Promise.all(chunkPromises);
+        
+        // Merge chunks on server
+        const mergeResponse = await axios.post(`${API_URL}/api/files/merge-chunks`, {
+          fileName: file.name,
+          totalChunks,
+        }, {
+          headers: {
+            'Device-Id': deviceId,
+            'Accept': 'application/json'
+          }
+        });
+
+        return mergeResponse.data;
+      } else {
+        // Small file - use regular upload
+        const response = await axios.post(`${API_URL}/api/files/upload`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Device-Id': deviceId,
+            'Accept': 'application/json'
+          },
+          withCredentials: true,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const progress = (progressEvent.loaded / progressEvent.total) * 100;
+              setUploadProgress(Math.round(progress));
+            }
+          },
+        });
+
+        return response.data;
+      }
+    } catch (error) {
+      throw error;
+    }
+  }, []);
+
+  const handleUpload = useCallback(async () => {
+    if (!file) return;
 
     setLoading(true);
     setUploadProgress(0);
+    setError({ show: false, message: '', severity: 'error' });
+    setShowQR(false);
 
     try {
-      const deviceId = getDeviceId();
-      const response = await axios.post(`${API_URL}/api/files/upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Device-Id': deviceId,
-          'Accept': 'application/json'
-        },
-        withCredentials: true,
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const progress = (progressEvent.loaded / progressEvent.total) * 100;
-            setUploadProgress(Math.round(progress));
-          }
-        },
-        // Add timeout and retry configuration
-        timeout: 60000, // 60 seconds for large files
-        validateStatus: (status) => status < 500, // Don't reject if status < 500
-        maxContentLength: Infinity, // Allow large files
-        maxBodyLength: Infinity // Allow large files
-      });
+      const result = await uploadFile(file);
 
-      if (response.status !== 201 && response.status !== 200) {
-        throw new Error(response.data?.message || 'Upload failed');
-      }
-
-      // Ensure we have the correct URL format
-      const fileData = response.data.file;
-      const qrCode = response.data.qrCode;
-      
-      // Use the API_URL for the download URL to ensure correct domain
+      // Generate QR code immediately after successful upload
+      const fileData = result.file;
+      const qrCode = result.qrCode;
       const downloadUrl = `${API_URL}/api/files/download/${fileData.filename}`;
       
       setQrCode(qrCode);
       setDownloadUrl(downloadUrl);
       
-      // Update recent history in localStorage
-      const currentHistory = JSON.parse(localStorage.getItem('recentHistory') || '[]');
-      currentHistory.unshift({
-        ...fileData,
-        url: downloadUrl // Ensure the URL is correct
-      });
-      if (currentHistory.length > 10) {
-        currentHistory.length = 10;
+      // Add file to device's recent history
+      const deviceId = localStorage.getItem('deviceId');
+      if (deviceId) {
+        await fetch(`${API_URL}/api/files/add-to-recent/${deviceId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fileId: fileData._id })
+        });
       }
-      localStorage.setItem('recentHistory', JSON.stringify(currentHistory));
       
       setShowQR(true);
       setError({ show: true, message: 'File uploaded successfully!', severity: 'success' });
-      
-      // Clear the file input
       setFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (error: any) {
-      console.error('Error uploading file:', error);
-      let errorMessage = 'Error uploading file. Please try again.';
-      
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        errorMessage = error.response.data?.message || error.response.statusText;
-      } else if (error.request) {
-        // The request was made but no response was received
-        errorMessage = 'No response from server. Please check your connection.';
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        errorMessage = error.message;
-      }
-      
+    } catch (err) {
+      console.error('Upload error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Upload failed';
       setError({ show: true, message: errorMessage, severity: 'error' });
     } finally {
       setLoading(false);
       setUploadProgress(0);
     }
-  };
+  }, [file, uploadFile]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';

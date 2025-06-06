@@ -28,11 +28,22 @@ const RecentFiles: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Get or generate device ID
+  const getDeviceId = React.useCallback(() => {
+    let deviceId = localStorage.getItem('deviceId');
+    if (!deviceId) {
+      deviceId = 'device_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('deviceId', deviceId);
+    }
+    return deviceId;
+  }, []);
+
   const fetchRecentFiles = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/files/recent');
+      const deviceId = getDeviceId();
+      const response = await fetch(`/api/files/recent/${deviceId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch recent files');
       }
