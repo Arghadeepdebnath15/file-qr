@@ -11,12 +11,20 @@ import {
   DialogContent,
   LinearProgress,
   alpha,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import QRCode from 'react-qr-code';
 import axios from 'axios';
-import { API_URL } from '../config';
+import { API_URL, CONFIG } from '../config';
+
+interface ErrorState {
+  show: boolean;
+  message: string;
+  severity: 'error' | 'warning' | 'info' | 'success';
+}
 
 const FileUpload: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -26,13 +34,43 @@ const FileUpload: React.FC = () => {
   const [showQR, setShowQR] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [error, setError] = useState<ErrorState>({ show: false, message: '', severity: 'error' });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const theme = useTheme();
+
+  const validateFile = (file: File): string | null => {
+    if (file.size > CONFIG.MAX_FILE_SIZE) {
+      return `File size exceeds ${CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB limit`;
+    }
+
+    // Check if file type is allowed
+    const fileType = file.type || '';
+    const isAllowed = CONFIG.ALLOWED_FILE_TYPES.some(type => {
+      if (type.endsWith('/*')) {
+        // Handle wildcard mime types (e.g., 'image/*')
+        return fileType.startsWith(type.replace('/*', '/'));
+      }
+      return type === fileType;
+    });
+
+    if (!isAllowed) {
+      return 'File type not allowed';
+    }
+
+    return null;
+  };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
     const droppedFile = e.dataTransfer.files[0];
+    
+    const validationError = validateFile(droppedFile);
+    if (validationError) {
+      setError({ show: true, message: validationError, severity: 'error' });
+      return;
+    }
+    
     setFile(droppedFile);
   };
 
@@ -48,7 +86,15 @@ const FileUpload: React.FC = () => {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      
+      const validationError = validateFile(selectedFile);
+      if (validationError) {
+        setError({ show: true, message: validationError, severity: 'error' });
+        return;
+      }
+      
+      setFile(selectedFile);
     }
   };
 
@@ -83,7 +129,15 @@ const FileUpload: React.FC = () => {
             setUploadProgress(Math.round(progress));
           }
         },
+        // Add timeout and retry configuration
+        timeout: 30000, // 30 seconds
+        validateStatus: (status) => status < 500, // Don't reject if status < 500
       });
+
+      if (response.status !== 201 && response.status !== 200) {
+        throw new Error(response.data?.message || 'Upload failed');
+      }
+
       setQrCode(response.data.qrCode);
       setDownloadUrl(`${API_URL}/api/files/download/${response.data.file.filename}`);
       
@@ -96,9 +150,13 @@ const FileUpload: React.FC = () => {
       localStorage.setItem('recentHistory', JSON.stringify(currentHistory));
       
       setShowQR(true);
+      setError({ show: true, message: 'File uploaded successfully!', severity: 'success' });
     } catch (error: any) {
       console.error('Error uploading file:', error);
-      alert(error.response?.data?.message || 'Error uploading file. Please try again.');
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || 'Error uploading file. Please try again.';
+      setError({ show: true, message: errorMessage, severity: 'error' });
     } finally {
       setLoading(false);
       setUploadProgress(0);
@@ -287,6 +345,20 @@ const FileUpload: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <Snackbar 
+        open={error.show} 
+        autoHideDuration={6000} 
+        onClose={() => setError({ ...error, show: false })}
+      >
+        <Alert 
+          onClose={() => setError({ ...error, show: false })} 
+          severity={error.severity}
+          sx={{ width: '100%' }}
+        >
+          {error.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 };

@@ -10,9 +10,8 @@ const getApiUrl = () => {
     return `http://${window.location.hostname}:5000`;
   }
 
-  // In production, use the same origin as the frontend
-  // This ensures the API calls go to the same domain
-  return window.location.origin;
+  // In production, use the Render backend URL regardless of frontend host
+  return 'https://qr-file-share-5ri5.onrender.com';
 };
 
 export const API_URL = getApiUrl();
@@ -24,4 +23,14 @@ export const CONFIG = {
   RETRY_DELAY: 2000, // 2 seconds
   MIN_RETRY_DELAY: 1000, // 1 second minimum between retries
   MAX_RETRY_DELAY: 5000, // 5 seconds maximum between retries
+  MAX_FILE_SIZE: 1024 * 1024 * 100, // 100MB
+  ALLOWED_FILE_TYPES: [
+    'image/*',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain',
+    'application/zip',
+    'application/x-zip-compressed'
+  ]
 }; 

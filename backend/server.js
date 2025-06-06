@@ -19,7 +19,9 @@ const corsOptions = {
     const allowedOrigins = process.env.NODE_ENV === 'production'
       ? [
           'https://qr-file-share-5ri5.onrender.com',
-          'https://qr-file-share.onrender.com'
+          'https://qr-file-share.onrender.com',
+          'https://qr-file-share-5ri5.onrender.com',
+          'http://qr-file-share-5ri5.onrender.com'
         ]
       : [
           'http://localhost:3000',
@@ -38,7 +40,7 @@ const corsOptions = {
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id'],
-  credentials: true // Allow credentials
+  credentials: true
 };
 
 // Apply CORS middleware first
@@ -85,7 +87,16 @@ mongoose.connection.on('disconnected', () => {
     console.warn('MongoDB disconnected. Attempting to reconnect...');
 });
 
-// API Routes - must come before static file serving
+// Production-specific middleware to ensure API routes are handled correctly
+if (process.env.NODE_ENV === 'production') {
+    // Add a middleware to properly handle API routes
+    app.use('/api', (req, res, next) => {
+        res.setHeader('Content-Type', 'application/json');
+        next();
+    });
+}
+
+// API Routes
 app.use('/api/files', fileRoutes);
 
 // API health check endpoint
@@ -104,17 +115,19 @@ app.use('/api', (err, req, res, next) => {
 
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
-    // Ensure the build directory exists
     const buildPath = path.join(__dirname, '../frontend/build');
     
-    // Serve static files
+    // Serve static files AFTER API routes
     app.use(express.static(buildPath));
 
-    // Handle frontend routes - but NOT /api routes
-    app.get('/*', (req, res, next) => {
-        // Skip this middleware if it's an API request
+    // Catch-all route for frontend - MUST come after API routes
+    app.get('*', (req, res, next) => {
+        // If this is an API request that wasn't caught by previous routes, return 404
         if (req.url.startsWith('/api/')) {
-            return next();
+            return res.status(404).json({ 
+                status: 'error',
+                message: 'API endpoint not found' 
+            });
         }
 
         const indexPath = path.join(buildPath, 'index.html');
@@ -131,11 +144,25 @@ if (process.env.NODE_ENV === 'production') {
 
 // Final error handler
 app.use((err, req, res, next) => {
+    // Check if headers have been sent
+    if (res.headersSent) {
+        return next(err);
+    }
+
     console.error('Unhandled Error:', err.message);
-    res.status(500).json({ 
-        message: 'Something went wrong!',
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
+    
+    // Set proper content type based on request path
+    const isApiRequest = req.path.startsWith('/api/');
+    res.setHeader('Content-Type', isApiRequest ? 'application/json' : 'text/html');
+
+    if (isApiRequest) {
+        res.status(500).json({ 
+            message: 'Something went wrong!',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    } else {
+        res.status(500).send('Internal Server Error');
+    }
 });
 
 app.listen(PORT, () => {
