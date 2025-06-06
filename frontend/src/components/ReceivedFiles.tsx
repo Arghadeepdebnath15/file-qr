@@ -11,6 +11,11 @@ import {
   IconButton,
   Button,
   alpha,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import NoFilesIcon from '@mui/icons-material/FileCopy';
@@ -27,6 +32,7 @@ interface FileInfo {
   uploadDate: string;
   url: string;
   isNew?: boolean;
+  isPasswordProtected?: boolean;
 }
 
 const ReceivedFiles: React.FC = () => {
@@ -36,6 +42,13 @@ const ReceivedFiles: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [newFilesCount, setNewFilesCount] = useState(0);
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
+  const [passwordDialog, setPasswordDialog] = useState<{
+    open: boolean;
+    fileId: string;
+    filename: string;
+  }>({ open: false, fileId: '', filename: '' });
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   
   // Use refs for values that shouldn't trigger re-renders
   const retryCountRef = useRef(0);
@@ -205,65 +218,29 @@ const ReceivedFiles: React.FC = () => {
 
   const handleDownload = async (file: FileInfo) => {
     if (downloadingFiles.has(file._id)) return;
-    
+
     try {
       setDownloadingFiles(prev => {
         const next = new Set(prev);
         next.add(file._id);
         return next;
       });
-      const downloadUrl = `${API_URL}/api/files/download/${file.filename}`;
-      
-      console.log('Attempting to download file:', file.originalName);
-      console.log('Download URL:', downloadUrl);
-      
-      const response = await fetch(downloadUrl, {
-        method: 'GET',
-        credentials: 'include',
-      });
 
-      if (!response.ok) {
-        // Try to get error message from response
-        let errorMessage;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
-        } catch {
-          errorMessage = `Failed to download file (Status: ${response.status})`;
-        }
-        throw new Error(errorMessage);
+      // If file is password protected, show password dialog
+      if (file.isPasswordProtected) {
+        setPasswordDialog({
+          open: true,
+          fileId: file._id,
+          filename: file.filename
+        });
+        return;
       }
 
-      // Get the blob from the response
-      const blob = await response.blob();
-      
-      if (blob.size === 0) {
-        throw new Error('Downloaded file is empty');
-      }
-      
-      // Create a URL for the blob
-      const url = window.URL.createObjectURL(blob);
-      
-      // Create a temporary link element
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = file.originalName;
-      
-      // Append to body, click, and clean up
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Clean up the blob URL
-      window.URL.revokeObjectURL(url);
-      
-      console.log('File download completed:', file.originalName);
+      await downloadFile(file);
     } catch (err) {
       console.error('Download error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to download file';
       setError(`Error downloading ${file.originalName}: ${errorMessage}`);
-      
-      // Clear error after 5 seconds
       setTimeout(() => setError(null), 5000);
     } finally {
       setDownloadingFiles(prev => {
@@ -271,6 +248,89 @@ const ReceivedFiles: React.FC = () => {
         next.delete(file._id);
         return next;
       });
+    }
+  };
+
+  const verifyPassword = async (file: FileInfo, password: string): Promise<string> => {
+    const response = await fetch(`${API_URL}/api/files/verify-password/${file.filename}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to verify password');
+    }
+
+    const data = await response.json();
+    if (!data.valid) {
+      throw new Error(data.message || 'Invalid password');
+    }
+
+    return file._id;
+  };
+
+  const downloadFile = async (file: FileInfo, verificationToken?: string) => {
+    const downloadUrl = `${API_URL}/api/files/download/${file.filename}${
+      verificationToken ? `?token=${verificationToken}` : ''
+    }`;
+    
+    const response = await fetch(downloadUrl, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        if (data.requiresPassword) {
+          setPasswordDialog({
+            open: true,
+            fileId: file._id,
+            filename: file.filename
+          });
+          return;
+        }
+      }
+      throw new Error(`Failed to download file (Status: ${response.status})`);
+    }
+
+    const blob = await response.blob();
+    if (blob.size === 0) {
+      throw new Error('Downloaded file is empty');
+    }
+
+    // Create and trigger download
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.originalName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handlePasswordSubmit = async () => {
+    const file = files.find(f => f._id === passwordDialog.fileId);
+    if (!file) return;
+
+    try {
+      // First verify the password
+      const verificationToken = await verifyPassword(file, password);
+      
+      // If password is valid, proceed with download
+      await downloadFile(file, verificationToken);
+      
+      // Clear password dialog
+      setPasswordDialog({ open: false, fileId: '', filename: '' });
+      setPassword('');
+      setPasswordError('');
+    } catch (err) {
+      console.error('Download error:', err);
+      setPasswordError(err instanceof Error ? err.message : 'Invalid password. Please try again.');
     }
   };
 
@@ -382,38 +442,84 @@ const ReceivedFiles: React.FC = () => {
   };
 
   return (
-    <Card sx={{ 
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
-      <Box sx={{ 
-        p: 2, 
-        display: 'flex', 
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderBottom: 1,
-        borderColor: 'divider'
+    <>
+      <Card sx={{ 
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
-        <Badge badgeContent={newFilesCount} color="primary">
-          <Typography variant="h6" component="h2">
-            Received Files
+        <Box sx={{ 
+          p: 2, 
+          display: 'flex', 
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: 1,
+          borderColor: 'divider'
+        }}>
+          <Badge badgeContent={newFilesCount} color="primary">
+            <Typography variant="h6" component="h2">
+              Received Files
+            </Typography>
+          </Badge>
+          {newFilesCount > 0 && (
+            <IconButton onClick={markAllAsRead} size="small" title="Mark all as read">
+              <DoneAllIcon />
+            </IconButton>
+          )}
+        </Box>
+        <Box sx={{ 
+          flex: 1,
+          overflow: 'auto',
+          p: 2
+        }}>
+          {renderContent()}
+        </Box>
+      </Card>
+      
+      <Dialog 
+        open={passwordDialog.open} 
+        onClose={() => {
+          setPasswordDialog({ open: false, fileId: '', filename: '' });
+          setPassword('');
+          setPasswordError('');
+        }}
+      >
+        <DialogTitle>Password Protected File</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            This file is password protected. Please enter the password to download.
           </Typography>
-        </Badge>
-        {newFilesCount > 0 && (
-          <IconButton onClick={markAllAsRead} size="small" title="Mark all as read">
-            <DoneAllIcon />
-          </IconButton>
-        )}
-      </Box>
-      <Box sx={{ 
-        flex: 1,
-        overflow: 'auto',
-        p: 2
-      }}>
-        {renderContent()}
-      </Box>
-    </Card>
+          <TextField
+            fullWidth
+            type="password"
+            label="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={!!passwordError}
+            helperText={passwordError}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              setPasswordDialog({ open: false, fileId: '', filename: '' });
+              setPassword('');
+              setPasswordError('');
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handlePasswordSubmit}
+            variant="contained" 
+            disabled={!password}
+          >
+            Download
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 };
 

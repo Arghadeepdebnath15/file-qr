@@ -18,6 +18,9 @@ import {
   ButtonGroup,
   Paper,
   Fade,
+  FormControlLabel,
+  Switch,
+  TextField,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -44,6 +47,8 @@ const FileUpload: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<ErrorState>({ show: false, message: '', severity: 'error' });
   const [shareError, setShareError] = useState<string>('');
+  const [isPasswordProtected, setIsPasswordProtected] = useState(false);
+  const [password, setPassword] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const theme = useTheme();
 
@@ -199,6 +204,13 @@ const FileUpload: React.FC = () => {
     setShowQR(false);
 
     try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (isPasswordProtected && password) {
+        formData.append('isPasswordProtected', 'true');
+        formData.append('password', password);
+      }
+
       const result = await uploadFile(file);
 
       // Generate QR code immediately after successful upload
@@ -224,6 +236,8 @@ const FileUpload: React.FC = () => {
       setShowQR(true);
       setError({ show: true, message: 'File uploaded successfully!', severity: 'success' });
       setFile(null);
+      setPassword('');
+      setIsPasswordProtected(false);
     } catch (err) {
       console.error('Upload error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
@@ -232,7 +246,7 @@ const FileUpload: React.FC = () => {
       setLoading(false);
       setUploadProgress(0);
     }
-  }, [file, uploadFile]);
+  }, [file, uploadFile, isPasswordProtected, password]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -401,25 +415,53 @@ const FileUpload: React.FC = () => {
       </Card>
 
       {file && !loading && (
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleUpload}
-            disabled={loading}
-            sx={{
-              minWidth: 200,
-              py: 1.5,
-              px: 4,
-              fontSize: '1.1rem',
-              background: 'linear-gradient(45deg, #2962ff 30%, #7c4dff 90%)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, #1e4cff 30%, #6b3dff 90%)',
-              },
-            }}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Upload File'}
-          </Button>
+        <Box sx={{ mt: 3 }}>
+          <Card sx={{ p: 2, mb: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isPasswordProtected}
+                  onChange={(e) => setIsPasswordProtected(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label="Password Protect File"
+            />
+            {isPasswordProtected && (
+              <Box sx={{ mt: 2 }}>
+                <TextField
+                  fullWidth
+                  type="password"
+                  label="Set Download Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  variant="outlined"
+                  size="small"
+                  required
+                />
+              </Box>
+            )}
+          </Card>
+          <Box sx={{ textAlign: 'center' }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleUpload}
+              disabled={loading || (isPasswordProtected && !password)}
+              sx={{
+                minWidth: 200,
+                py: 1.5,
+                px: 4,
+                fontSize: '1.1rem',
+                background: 'linear-gradient(45deg, #2962ff 30%, #7c4dff 90%)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #1e4cff 30%, #6b3dff 90%)',
+                },
+              }}
+            >
+              {loading ? <CircularProgress size={24} /> : 'Upload File'}
+            </Button>
+          </Box>
         </Box>
       )}
 
