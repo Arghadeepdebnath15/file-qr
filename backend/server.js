@@ -12,10 +12,10 @@ const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 app.use(cors({
-    origin: true, // Allow all origins in development
+    origin: ['http://localhost:3000', 'https://qr-file-share-5ri5.onrender.com'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id']
 }));
 
 // Middleware
@@ -23,7 +23,7 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // MongoDB connection with better error handling
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/qr-file-share';
+const MONGODB_URI = 'mongodb://localhost:27017/qr-file-share';
 
 mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,

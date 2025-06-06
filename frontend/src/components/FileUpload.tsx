@@ -11,8 +11,8 @@ import {
   DialogContent,
   LinearProgress,
   alpha,
-  useTheme,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import QRCode from 'react-qr-code';
 import axios from 'axios';

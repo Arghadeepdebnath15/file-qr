@@ -20,7 +20,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@types/react-datepicker": "^6.2.0",
+    "@mui/material": "^5.15.10",
+    "@mui/icons-material": "^5.15.10",
+    "@emotion/react": "^11.11.3",
+    "@emotion/styled": "^11.11.0",
+    "@types/react-datepicker": "^4.19.6",
     "@types/ua-parser-js": "^0.7.39",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
