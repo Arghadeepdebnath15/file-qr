@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -37,7 +37,7 @@ const ReceivedFiles: React.FC = () => {
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
     try {
       if (!loading) setLoading(true);
       setError(null);
@@ -99,14 +99,14 @@ const ReceivedFiles: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, retryCount]);
 
   useEffect(() => {
     fetchFiles();
     // Poll for new files
     const interval = setInterval(fetchFiles, CONFIG.POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchFiles]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
