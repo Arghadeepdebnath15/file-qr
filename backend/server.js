@@ -72,8 +72,13 @@ mongoose.connection.on('disconnected', () => {
     console.warn('MongoDB disconnected. Attempting to reconnect...');
 });
 
-// Routes
+// API Routes - these should be handled before the static files
 app.use('/api/files', fileRoutes);
+
+// API health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', message: 'API is running' });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -92,14 +97,21 @@ if (process.env.NODE_ENV === 'production') {
     // Set static folder
     app.use(express.static(buildPath));
 
+    // Handle frontend routes
     app.get('*', (req, res) => {
+        // If the request is for the API, don't try to serve frontend files
+        if (req.url.startsWith('/api/')) {
+            return res.status(404).json({ message: 'API endpoint not found' });
+        }
+
         const indexPath = path.join(buildPath, 'index.html');
         // Check if the file exists before sending
         if (require('fs').existsSync(indexPath)) {
             res.sendFile(indexPath);
         } else {
-            res.status(404).json({ 
-                message: 'Frontend build not found. Please ensure the frontend is built before starting the server.'
+            res.status(503).json({ 
+                message: 'Application is starting up. If this persists, please contact support.',
+                details: process.env.NODE_ENV === 'development' ? 'Frontend build not found at: ' + buildPath : undefined
             });
         }
     });
@@ -107,4 +119,10 @@ if (process.env.NODE_ENV === 'production') {
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    // Log the environment and available endpoints
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('Available endpoints:');
+    console.log('- GET /api/health');
+    console.log('- GET /api/files/recent');
+    console.log('- POST /api/files/upload');
 }); 
