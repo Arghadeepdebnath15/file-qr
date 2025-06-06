@@ -135,48 +135,54 @@ function App() {
             position: 'relative',
           }}
         >
-          {/* Theme Toggle Button */}
-          <IconButton
-            onClick={toggleColorMode}
+          {/* Theme Toggle Button - Updated positioning */}
+          <Box
             sx={{
               position: 'fixed',
-              top: 16,
-              right: 16,
-              bgcolor: theme.palette.background.paper,
-              boxShadow: theme.shadows[4],
-              width: 40,
-              height: 40,
-              transition: 'transform 0.3s ease-in-out, background-color 0.3s ease-in-out',
-              '&:hover': {
-                bgcolor: theme.palette.background.paper,
-                transform: 'rotate(45deg)',
-              },
+              top: { xs: 8, sm: 16 },
+              right: { xs: 8, sm: 16 },
+              zIndex: 1200, // Ensure it's above other content
             }}
           >
-            {mode === 'dark' ? (
-              <WbSunnyRoundedIcon 
-                sx={{ 
-                  color: '#ffd700',
-                  fontSize: 24,
-                  transition: 'color 0.3s ease-in-out',
-                  '&:hover': {
-                    color: '#ffeb3b',
-                  },
-                }} 
-              />
-            ) : (
-              <NightlightRoundIcon 
-                sx={{ 
-                  color: '#5c6bc0',
-                  fontSize: 24,
-                  transition: 'color 0.3s ease-in-out',
-                  '&:hover': {
-                    color: '#3f51b5',
-                  },
-                }} 
-              />
-            )}
-          </IconButton>
+            <IconButton
+              onClick={toggleColorMode}
+              sx={{
+                bgcolor: theme.palette.background.paper,
+                boxShadow: theme.shadows[4],
+                width: { xs: 36, sm: 40 },
+                height: { xs: 36, sm: 40 },
+                transition: 'transform 0.3s ease-in-out, background-color 0.3s ease-in-out',
+                '&:hover': {
+                  bgcolor: theme.palette.background.paper,
+                  transform: 'rotate(45deg)',
+                },
+              }}
+            >
+              {mode === 'dark' ? (
+                <WbSunnyRoundedIcon 
+                  sx={{ 
+                    color: '#ffd700',
+                    fontSize: { xs: 20, sm: 24 },
+                    transition: 'color 0.3s ease-in-out',
+                    '&:hover': {
+                      color: '#ffeb3b',
+                    },
+                  }} 
+                />
+              ) : (
+                <NightlightRoundIcon 
+                  sx={{ 
+                    color: '#5c6bc0',
+                    fontSize: { xs: 20, sm: 24 },
+                    transition: 'color 0.3s ease-in-out',
+                    '&:hover': {
+                      color: '#3f51b5',
+                    },
+                  }} 
+                />
+              )}
+            </IconButton>
+          </Box>
 
           <Container maxWidth="lg">
             <Paper
