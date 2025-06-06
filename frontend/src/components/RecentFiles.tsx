@@ -31,6 +31,7 @@ import axios from 'axios';
 import { API_URL } from '../config';
 import DeviceManager from './DeviceManager';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import NoFilesIcon from '@mui/icons-material/FileCopy';
 
 interface FileInfo {
   _id: string;
@@ -153,503 +154,54 @@ const RecentFiles: React.FC = () => {
   if (loading) {
     return (
       <Container 
-        maxWidth={false} 
+        maxWidth="xl"
         sx={{ 
-          py: 4,
-          px: { xs: 2, sm: 3, md: 4 },
-          bgcolor: alpha(theme.palette.primary.main, 0.03),
-        }}
-      >
-        <Paper
-          elevation={0}
-          sx={{
-            bgcolor: 'transparent',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 3,
-            maxWidth: { sm: '100%', md: '90%', lg: '85%' },
-            mx: 'auto',
-          }}
-        >
-          <Box sx={{ position: 'relative' }}>
-            <DeviceManager onClearHistory={handleClearAll} onRefresh={fetchRecentFiles} />
-          </Box>
-
-          <Card
-            sx={{
-              flexGrow: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              borderRadius: 3,
-              boxShadow: theme.shadows[3],
-              bgcolor: 'background.paper',
-              overflow: 'hidden',
-              width: '100%',
-            }}
-          >
-            <CardContent sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <Box 
-                sx={{ 
-                  p: 3,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  bgcolor: alpha(theme.palette.primary.main, 0.02),
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <FolderIcon sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
-                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    Your Files
-                  </Typography>
-                </Box>
-                {files.length > 0 && (
-                  <Fade in>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="medium"
-                      startIcon={<DeleteIcon />}
-                      onClick={handleClearAll}
-                      sx={{
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        px: 3,
-                      }}
-                    >
-                      Clear All
-                    </Button>
-                  </Fade>
-                )}
-              </Box>
-
-              <Box sx={{ 
-                flexGrow: 1, 
-                overflow: 'auto',
-                px: 3,
-                py: 2,
-              }}>
-                {files.length === 0 ? (
-                  <Box 
-                    sx={{ 
-                      height: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 2,
-                      py: 8,
-                    }}
-                  >
-                    <FolderIcon sx={{ fontSize: 80, color: 'text.disabled' }} />
-                    <Typography variant="h6" color="text.secondary">
-                      No files uploaded from this device yet
-                    </Typography>
-                  </Box>
-                ) : (
-                  <List sx={{ py: 0 }}>
-                    {files.map((file, index) => (
-                      <Grow
-                        key={file._id}
-                        in
-                        timeout={300 + index * 100}
-                      >
-                        <Box>
-                          {index > 0 && <Divider />}
-                          <ListItem
-                            sx={{
-                              py: 3,
-                              px: 2,
-                              borderRadius: 2,
-                              '&:hover': {
-                                bgcolor: alpha(theme.palette.primary.main, 0.03),
-                              },
-                              transition: 'background-color 0.2s ease',
-                            }}
-                          >
-                            <ListItemText
-                              primary={
-                                <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>
-                                  {file.originalName}
-                                </Typography>
-                              }
-                              secondary={
-                                <Box sx={{ mt: 1 }}>
-                                  <Chip
-                                    size="small"
-                                    label={formatFileSize(file.size)}
-                                    sx={{ 
-                                      mr: 1,
-                                      bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                      color: theme.palette.primary.main,
-                                    }}
-                                  />
-                                  <Chip
-                                    size="small"
-                                    icon={<FileDownloadIcon />}
-                                    label={`${file.downloadCount} downloads`}
-                                    sx={{ 
-                                      mr: 1,
-                                      bgcolor: alpha(theme.palette.success.main, 0.1),
-                                      color: theme.palette.success.main,
-                                    }}
-                                  />
-                                  <Typography 
-                                    variant="caption" 
-                                    display="block" 
-                                    sx={{ 
-                                      mt: 1,
-                                      color: 'text.secondary',
-                                    }}
-                                  >
-                                    Uploaded: {formatDate(file.uploadDate)}
-                                  </Typography>
-                                </Box>
-                              }
-                            />
-                            <Box sx={{ 
-                              display: 'flex',
-                              gap: 1,
-                            }}>
-                              <IconButton
-                                onClick={() => handleShowQR(file)}
-                                color="primary"
-                                title="Show QR Code"
-                                sx={{ 
-                                  '&:hover': { 
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                  },
-                                }}
-                              >
-                                <QrCodeIcon />
-                              </IconButton>
-                              <IconButton
-                                onClick={() => handleDownload(file.filename, file.originalName)}
-                                color="primary"
-                                title="Download file"
-                                sx={{ 
-                                  '&:hover': { 
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                  },
-                                }}
-                              >
-                                <DownloadIcon />
-                              </IconButton>
-                              <IconButton
-                                onClick={() => handleDeleteFile(file._id)}
-                                color="error"
-                                title="Remove from recent history"
-                                sx={{ 
-                                  '&:hover': { 
-                                    bgcolor: alpha(theme.palette.error.main, 0.1),
-                                  },
-                                }}
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </Box>
-                          </ListItem>
-                        </Box>
-                      </Grow>
-                    ))}
-                  </List>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Paper>
-      </Container>
-    );
-  }
-
-  if (error) {
-    return (
-      <Container 
-        maxWidth={false} 
-        sx={{ 
-          py: 4,
-          px: { xs: 2, sm: 3, md: 4 },
-          bgcolor: alpha(theme.palette.primary.main, 0.03),
-        }}
-      >
-        <Paper
-          elevation={0}
-          sx={{
-            bgcolor: 'transparent',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 3,
-            maxWidth: { sm: '100%', md: '90%', lg: '85%' },
-            mx: 'auto',
-          }}
-        >
-          <Box sx={{ position: 'relative' }}>
-            <DeviceManager onClearHistory={handleClearAll} onRefresh={fetchRecentFiles} />
-          </Box>
-
-          <Card
-            sx={{
-              flexGrow: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              borderRadius: 3,
-              boxShadow: theme.shadows[3],
-              bgcolor: 'background.paper',
-              overflow: 'hidden',
-              width: '100%',
-            }}
-          >
-            <CardContent sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <Box 
-                sx={{ 
-                  p: 3,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  bgcolor: alpha(theme.palette.primary.main, 0.02),
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <FolderIcon sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
-                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    Your Files
-                  </Typography>
-                </Box>
-                {files.length > 0 && (
-                  <Fade in>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="medium"
-                      startIcon={<DeleteIcon />}
-                      onClick={handleClearAll}
-                      sx={{
-                        borderRadius: 2,
-                        textTransform: 'none',
-                        px: 3,
-                      }}
-                    >
-                      Clear All
-                    </Button>
-                  </Fade>
-                )}
-              </Box>
-
-              <Box sx={{ 
-                flexGrow: 1, 
-                overflow: 'auto',
-                px: 3,
-                py: 2,
-              }}>
-                {files.length === 0 ? (
-                  <Box 
-                    sx={{ 
-                      height: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 2,
-                      py: 8,
-                    }}
-                  >
-                    <FolderIcon sx={{ fontSize: 80, color: 'text.disabled' }} />
-                    <Typography variant="h6" color="text.secondary">
-                      No files uploaded from this device yet
-                    </Typography>
-                  </Box>
-                ) : (
-                  <List sx={{ py: 0 }}>
-                    {files.map((file, index) => (
-                      <Grow
-                        key={file._id}
-                        in
-                        timeout={300 + index * 100}
-                      >
-                        <Box>
-                          {index > 0 && <Divider />}
-                          <ListItem
-                            sx={{
-                              py: 3,
-                              px: 2,
-                              borderRadius: 2,
-                              '&:hover': {
-                                bgcolor: alpha(theme.palette.primary.main, 0.03),
-                              },
-                              transition: 'background-color 0.2s ease',
-                            }}
-                          >
-                            <ListItemText
-                              primary={
-                                <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>
-                                  {file.originalName}
-                                </Typography>
-                              }
-                              secondary={
-                                <Box sx={{ mt: 1 }}>
-                                  <Chip
-                                    size="small"
-                                    label={formatFileSize(file.size)}
-                                    sx={{ 
-                                      mr: 1,
-                                      bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                      color: theme.palette.primary.main,
-                                    }}
-                                  />
-                                  <Chip
-                                    size="small"
-                                    icon={<FileDownloadIcon />}
-                                    label={`${file.downloadCount} downloads`}
-                                    sx={{ 
-                                      mr: 1,
-                                      bgcolor: alpha(theme.palette.success.main, 0.1),
-                                      color: theme.palette.success.main,
-                                    }}
-                                  />
-                                  <Typography 
-                                    variant="caption" 
-                                    display="block" 
-                                    sx={{ 
-                                      mt: 1,
-                                      color: 'text.secondary',
-                                    }}
-                                  >
-                                    Uploaded: {formatDate(file.uploadDate)}
-                                  </Typography>
-                                </Box>
-                              }
-                            />
-                            <Box sx={{ 
-                              display: 'flex',
-                              gap: 1,
-                            }}>
-                              <IconButton
-                                onClick={() => handleShowQR(file)}
-                                color="primary"
-                                title="Show QR Code"
-                                sx={{ 
-                                  '&:hover': { 
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                  },
-                                }}
-                              >
-                                <QrCodeIcon />
-                              </IconButton>
-                              <IconButton
-                                onClick={() => handleDownload(file.filename, file.originalName)}
-                                color="primary"
-                                title="Download file"
-                                sx={{ 
-                                  '&:hover': { 
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                  },
-                                }}
-                              >
-                                <DownloadIcon />
-                              </IconButton>
-                              <IconButton
-                                onClick={() => handleDeleteFile(file._id)}
-                                color="error"
-                                title="Remove from recent history"
-                                sx={{ 
-                                  '&:hover': { 
-                                    bgcolor: alpha(theme.palette.error.main, 0.1),
-                                  },
-                                }}
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </Box>
-                          </ListItem>
-                        </Box>
-                      </Grow>
-                    ))}
-                  </List>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </Paper>
-      </Container>
-    );
-  }
-
-  return (
-    <Container 
-      maxWidth={false} 
-      sx={{ 
-        py: 4,
-        px: { xs: 2, sm: 3, md: 4 },
-        bgcolor: alpha(theme.palette.primary.main, 0.03),
-      }}
-    >
-      <Paper
-        elevation={0}
-        sx={{
+          py: 2,
+          px: { xs: 2, sm: 3 },
           bgcolor: 'transparent',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 3,
-          maxWidth: { sm: '100%', md: '90%', lg: '85%' },
-          mx: 'auto',
         }}
       >
-        <Box sx={{ position: 'relative' }}>
-          <DeviceManager onClearHistory={handleClearAll} onRefresh={fetchRecentFiles} />
-        </Box>
-
-        <Card
+        <Paper
+          elevation={0}
           sx={{
-            flexGrow: 1,
+            bgcolor: 'transparent',
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: 3,
-            boxShadow: theme.shadows[3],
-            bgcolor: 'background.paper',
-            overflow: 'hidden',
+            gap: 2,
             width: '100%',
+            mx: 'auto',
+            minHeight: 'auto',
           }}
         >
-          <CardContent sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <Card
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              borderRadius: 2,
+              boxShadow: 'none',
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+              overflow: 'hidden',
+              width: '100%',
+              minHeight: 'auto',
+            }}
+          >
             <Box 
               sx={{ 
-                p: 3,
+                p: 2,
                 borderBottom: 1,
                 borderColor: 'divider',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                bgcolor: alpha(theme.palette.primary.main, 0.02),
+                bgcolor: 'transparent',
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <FolderIcon sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
-                <Typography variant="h5" sx={{ fontWeight: 600 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <FolderIcon sx={{ color: theme.palette.primary.main, fontSize: 24 }} />
+                <Typography variant="h6" sx={{ fontWeight: 500, fontSize: '1.1rem' }}>
                   Your Files
                 </Typography>
               </Box>
-              {files.length > 0 && (
-                <Fade in>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    size="medium"
-                    startIcon={<DeleteIcon />}
-                    onClick={handleClearAll}
-                    sx={{
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      px: 3,
-                    }}
-                  >
-                    Clear All
-                  </Button>
-                </Fade>
-              )}
             </Box>
 
             <Box sx={{ 
@@ -659,21 +211,44 @@ const RecentFiles: React.FC = () => {
               py: 2,
             }}>
               {files.length === 0 ? (
-                <Box 
-                  sx={{ 
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 2,
-                    py: 8,
+                <Box
+                  sx={{
+                    position: 'relative',
+                    width: '100%',
+                    '&::before': {
+                      content: '""',
+                      display: 'block',
+                      paddingTop: '100%',
+                    },
                   }}
                 >
-                  <FolderIcon sx={{ fontSize: 80, color: 'text.disabled' }} />
-                  <Typography variant="h6" color="text.secondary">
-                    No files uploaded from this device yet
-                  </Typography>
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 1.5,
+                    }}
+                  >
+                    <NoFilesIcon 
+                      sx={{ 
+                        fontSize: 48, 
+                        color: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
+                      }} 
+                    />
+                    <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                      No files uploaded yet
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" textAlign="center">
+                      Your uploaded files will appear here
+                    </Typography>
+                  </Box>
                 </Box>
               ) : (
                 <List sx={{ py: 0 }}>
@@ -784,10 +359,405 @@ const RecentFiles: React.FC = () => {
                 </List>
               )}
             </Box>
-          </CardContent>
-        </Card>
-      </Paper>
-    </Container>
+          </Card>
+        </Paper>
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container 
+        maxWidth="xl"
+        sx={{ 
+          py: 2,
+          px: { xs: 2, sm: 3 },
+          bgcolor: 'transparent',
+        }}
+      >
+        <Paper
+          elevation={0}
+          sx={{
+            bgcolor: 'transparent',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            width: '100%',
+            mx: 'auto',
+            minHeight: 'auto',
+          }}
+        >
+          <Card
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              borderRadius: 2,
+              boxShadow: 'none',
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+              overflow: 'hidden',
+              width: '100%',
+              minHeight: 'auto',
+            }}
+          >
+            <Box 
+              sx={{ 
+                p: 2,
+                borderBottom: 1,
+                borderColor: 'divider',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                bgcolor: 'transparent',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <FolderIcon sx={{ color: theme.palette.primary.main, fontSize: 24 }} />
+                <Typography variant="h6" sx={{ fontWeight: 500, fontSize: '1.1rem' }}>
+                  Your Files
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ 
+              flexGrow: 1, 
+              overflow: 'auto',
+              px: 3,
+              py: 2,
+            }}>
+              {files.length === 0 ? (
+                <Box
+                  sx={{
+                    position: 'relative',
+                    width: '100%',
+                    '&::before': {
+                      content: '""',
+                      display: 'block',
+                      paddingTop: '100%',
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 1.5,
+                    }}
+                  >
+                    <NoFilesIcon 
+                      sx={{ 
+                        fontSize: 48, 
+                        color: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
+                      }} 
+                    />
+                    <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                      No files uploaded yet
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" textAlign="center">
+                      Your uploaded files will appear here
+                    </Typography>
+                  </Box>
+                </Box>
+              ) : (
+                <List sx={{ py: 0 }}>
+                  {files.map((file, index) => (
+                    <Grow
+                      key={file._id}
+                      in
+                      timeout={300 + index * 100}
+                    >
+                      <Box>
+                        {index > 0 && <Divider />}
+                        <ListItem
+                          sx={{
+                            py: 3,
+                            px: 2,
+                            borderRadius: 2,
+                            '&:hover': {
+                              bgcolor: alpha(theme.palette.primary.main, 0.03),
+                            },
+                            transition: 'background-color 0.2s ease',
+                          }}
+                        >
+                          <ListItemText
+                            primary={
+                              <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>
+                                {file.originalName}
+                              </Typography>
+                            }
+                            secondary={
+                              <Box sx={{ mt: 1 }}>
+                                <Chip
+                                  size="small"
+                                  label={formatFileSize(file.size)}
+                                  sx={{ 
+                                    mr: 1,
+                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                    color: theme.palette.primary.main,
+                                  }}
+                                />
+                                <Chip
+                                  size="small"
+                                  icon={<FileDownloadIcon />}
+                                  label={`${file.downloadCount} downloads`}
+                                  sx={{ 
+                                    mr: 1,
+                                    bgcolor: alpha(theme.palette.success.main, 0.1),
+                                    color: theme.palette.success.main,
+                                  }}
+                                />
+                                <Typography 
+                                  variant="caption" 
+                                  display="block" 
+                                  sx={{ 
+                                    mt: 1,
+                                    color: 'text.secondary',
+                                  }}
+                                >
+                                  Uploaded: {formatDate(file.uploadDate)}
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                          <Box sx={{ 
+                            display: 'flex',
+                            gap: 1,
+                          }}>
+                            <IconButton
+                              onClick={() => handleShowQR(file)}
+                              color="primary"
+                              title="Show QR Code"
+                              sx={{ 
+                                '&:hover': { 
+                                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                },
+                              }}
+                            >
+                              <QrCodeIcon />
+                            </IconButton>
+                            <IconButton
+                              onClick={() => handleDownload(file.filename, file.originalName)}
+                              color="primary"
+                              title="Download file"
+                              sx={{ 
+                                '&:hover': { 
+                                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                },
+                              }}
+                            >
+                              <DownloadIcon />
+                            </IconButton>
+                            <IconButton
+                              onClick={() => handleDeleteFile(file._id)}
+                              color="error"
+                              title="Remove from recent history"
+                              sx={{ 
+                                '&:hover': { 
+                                  bgcolor: alpha(theme.palette.error.main, 0.1),
+                                },
+                              }}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Box>
+                        </ListItem>
+                      </Box>
+                    </Grow>
+                  ))}
+                </List>
+              )}
+            </Box>
+          </Card>
+        </Paper>
+      </Container>
+    );
+  }
+
+  return (
+    <Box sx={{ mt: 4 }}>
+      <Card
+        elevation={0}
+        sx={{
+          width: '100%',
+          borderRadius: 2,
+          bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+          overflow: 'hidden',
+        }}
+      >
+        <Box 
+          sx={{ 
+            p: 2,
+            borderBottom: 1,
+            borderColor: 'divider',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <FolderIcon sx={{ color: theme.palette.primary.main, fontSize: 24 }} />
+            <Typography variant="h6" sx={{ fontWeight: 500, fontSize: '1.1rem' }}>
+              Your Files
+            </Typography>
+          </Box>
+        </Box>
+
+        {files.length === 0 ? (
+          <Box
+            sx={{
+              position: 'relative',
+              width: '100%',
+              '&::before': {
+                content: '""',
+                display: 'block',
+                paddingTop: '100%',
+              },
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1.5,
+              }}
+            >
+              <NoFilesIcon 
+                sx={{ 
+                  fontSize: 48, 
+                  color: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
+                }} 
+              />
+              <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                No files uploaded yet
+              </Typography>
+              <Typography variant="body2" color="text.secondary" textAlign="center">
+                Your uploaded files will appear here
+              </Typography>
+            </Box>
+          </Box>
+        ) : (
+          <List sx={{ py: 0 }}>
+            {files.map((file, index) => (
+              <Grow
+                key={file._id}
+                in
+                timeout={300 + index * 100}
+              >
+                <Box>
+                  {index > 0 && <Divider />}
+                  <ListItem
+                    sx={{
+                      py: 3,
+                      px: 2,
+                      borderRadius: 2,
+                      '&:hover': {
+                        bgcolor: alpha(theme.palette.primary.main, 0.03),
+                      },
+                      transition: 'background-color 0.2s ease',
+                    }}
+                  >
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>
+                          {file.originalName}
+                        </Typography>
+                      }
+                      secondary={
+                        <Box sx={{ mt: 1 }}>
+                          <Chip
+                            size="small"
+                            label={formatFileSize(file.size)}
+                            sx={{ 
+                              mr: 1,
+                              bgcolor: alpha(theme.palette.primary.main, 0.1),
+                              color: theme.palette.primary.main,
+                            }}
+                          />
+                          <Chip
+                            size="small"
+                            icon={<FileDownloadIcon />}
+                            label={`${file.downloadCount} downloads`}
+                            sx={{ 
+                              mr: 1,
+                              bgcolor: alpha(theme.palette.success.main, 0.1),
+                              color: theme.palette.success.main,
+                            }}
+                          />
+                          <Typography 
+                            variant="caption" 
+                            display="block" 
+                            sx={{ 
+                              mt: 1,
+                              color: 'text.secondary',
+                            }}
+                          >
+                            Uploaded: {formatDate(file.uploadDate)}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                    <Box sx={{ 
+                      display: 'flex',
+                      gap: 1,
+                    }}>
+                      <IconButton
+                        onClick={() => handleShowQR(file)}
+                        color="primary"
+                        title="Show QR Code"
+                        sx={{ 
+                          '&:hover': { 
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                          },
+                        }}
+                      >
+                        <QrCodeIcon />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => handleDownload(file.filename, file.originalName)}
+                        color="primary"
+                        title="Download file"
+                        sx={{ 
+                          '&:hover': { 
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                          },
+                        }}
+                      >
+                        <DownloadIcon />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => handleDeleteFile(file._id)}
+                        color="error"
+                        title="Remove from recent history"
+                        sx={{ 
+                          '&:hover': { 
+                            bgcolor: alpha(theme.palette.error.main, 0.1),
+                          },
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
+                  </ListItem>
+                </Box>
+              </Grow>
+            ))}
+          </List>
+        )}
+      </Card>
+    </Box>
   );
 };
 
