@@ -34,11 +34,32 @@ const ReceivedFiles: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [newFilesCount, setNewFilesCount] = useState(0);
   const [retryCount, setRetryCount] = useState(0);
+  const [lastFetchTime, setLastFetchTime] = useState(0);
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const fetchFiles = useCallback(async () => {
+  const calculateRetryDelay = useCallback((retry: number) => {
+    // Exponential backoff with jitter
+    const baseDelay = Math.min(
+      CONFIG.MAX_RETRY_DELAY,
+      Math.max(CONFIG.MIN_RETRY_DELAY, CONFIG.RETRY_DELAY * Math.pow(2, retry))
+    );
+    // Add random jitter of up to 1 second
+    return baseDelay + Math.random() * 1000;
+  }, []);
+
+  const fetchFiles = useCallback(async (isRetry = false) => {
     try {
+      // If this is not a retry, check if we need to wait
+      if (!isRetry) {
+        const now = Date.now();
+        const timeSinceLastFetch = now - lastFetchTime;
+        if (timeSinceLastFetch < CONFIG.POLL_INTERVAL) {
+          // Skip this fetch if it's too soon
+          return;
+        }
+      }
+
       if (!loading) setLoading(true);
       setError(null);
       
@@ -73,6 +94,7 @@ const ReceivedFiles: React.FC = () => {
       
       // Reset retry count on successful fetch
       setRetryCount(0);
+      setLastFetchTime(Date.now());
       
       // Mark files as new if they were uploaded in the last 5 minutes
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -90,21 +112,22 @@ const ReceivedFiles: React.FC = () => {
       setError(errorMessage);
       console.error('Error fetching files:', err);
 
-      // Implement retry logic
+      // Implement retry logic with exponential backoff
       if (retryCount < CONFIG.MAX_RETRIES) {
-        setRetryCount(prev => prev + 1);
-        await sleep(CONFIG.RETRY_DELAY);
-        await fetchFiles();
+        const nextRetryCount = retryCount + 1;
+        setRetryCount(nextRetryCount);
+        const delay = calculateRetryDelay(nextRetryCount);
+        await sleep(delay);
+        await fetchFiles(true); // Mark this as a retry attempt
       }
     } finally {
       setLoading(false);
     }
-  }, [loading, retryCount]);
+  }, [loading, retryCount, lastFetchTime, calculateRetryDelay]);
 
   useEffect(() => {
     fetchFiles();
-    // Poll for new files
-    const interval = setInterval(fetchFiles, CONFIG.POLL_INTERVAL);
+    const interval = setInterval(() => fetchFiles(), CONFIG.POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchFiles]);
 

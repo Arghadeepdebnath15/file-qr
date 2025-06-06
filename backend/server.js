@@ -41,21 +41,21 @@ const corsOptions = {
   credentials: true // Allow credentials
 };
 
+// Apply CORS middleware first
 app.use(cors(corsOptions));
-
-// Add CORS preflight
 app.options('*', cors(corsOptions));
 
-// Middleware
+// Parse JSON bodies
 app.use(express.json());
+
+// Serve uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// MongoDB connection with better error handling
+// MongoDB connection
 const MONGODB_URI = process.env.NODE_ENV === 'production'
     ? process.env.MONGODB_URI
     : 'mongodb://localhost:27017/qr-file-share';
 
-// Add connection options
 const mongooseOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -66,7 +66,6 @@ const mongooseOptions = {
 
 mongoose.connect(MONGODB_URI, mongooseOptions)
 .then(() => {
-    // Don't log the full connection string in production
     console.log('MongoDB connected successfully to:', 
         process.env.NODE_ENV === 'production' 
             ? '[PRODUCTION_DB]' 
@@ -78,7 +77,6 @@ mongoose.connect(MONGODB_URI, mongooseOptions)
     process.exit(1);
 });
 
-// Handle MongoDB connection events
 mongoose.connection.on('error', (err) => {
     console.error('MongoDB error after initial connection:', err.message);
 });
@@ -87,7 +85,7 @@ mongoose.connection.on('disconnected', () => {
     console.warn('MongoDB disconnected. Attempting to reconnect...');
 });
 
-// API Routes - these should be handled before the static files
+// API Routes - must come before static file serving
 app.use('/api/files', fileRoutes);
 
 // API health check endpoint
@@ -95,9 +93,9 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'API is running' });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error(err.stack);
+// Error handling middleware for API routes
+app.use('/api', (err, req, res, next) => {
+    console.error('API Error:', err.message);
     res.status(500).json({ 
         message: 'Something went wrong!',
         error: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -109,18 +107,17 @@ if (process.env.NODE_ENV === 'production') {
     // Ensure the build directory exists
     const buildPath = path.join(__dirname, '../frontend/build');
     
-    // Set static folder
+    // Serve static files
     app.use(express.static(buildPath));
 
-    // Handle frontend routes
-    app.get('*', (req, res) => {
-        // If the request is for the API, don't try to serve frontend files
+    // Handle frontend routes - but NOT /api routes
+    app.get('/*', (req, res, next) => {
+        // Skip this middleware if it's an API request
         if (req.url.startsWith('/api/')) {
-            return res.status(404).json({ message: 'API endpoint not found' });
+            return next();
         }
 
         const indexPath = path.join(buildPath, 'index.html');
-        // Check if the file exists before sending
         if (require('fs').existsSync(indexPath)) {
             res.sendFile(indexPath);
         } else {
@@ -132,9 +129,17 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
+// Final error handler
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err.message);
+    res.status(500).json({ 
+        message: 'Something went wrong!',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-    // Log the environment and available endpoints
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log('Available endpoints:');
     console.log('- GET /api/health');

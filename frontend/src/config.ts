@@ -19,7 +19,9 @@ export const API_URL = getApiUrl();
 
 // Export additional configuration
 export const CONFIG = {
-  POLL_INTERVAL: 5000, // 5 seconds
+  POLL_INTERVAL: 30000, // 30 seconds
   MAX_RETRIES: 3,
-  RETRY_DELAY: 1000, // 1 second
+  RETRY_DELAY: 2000, // 2 seconds
+  MIN_RETRY_DELAY: 1000, // 1 second minimum between retries
+  MAX_RETRY_DELAY: 5000, // 5 seconds maximum between retries
 }; 
