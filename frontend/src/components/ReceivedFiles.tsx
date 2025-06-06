@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Card,
@@ -33,12 +33,15 @@ const ReceivedFiles: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newFilesCount, setNewFilesCount] = useState(0);
-  const [retryCount, setRetryCount] = useState(0);
-  const [lastFetchTime, setLastFetchTime] = useState(0);
+  
+  // Use refs for values that shouldn't trigger re-renders
+  const retryCountRef = useRef(0);
+  const lastFetchTimeRef = useRef(0);
+  const isMountedRef = useRef(true);
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const calculateRetryDelay = useCallback((retry: number) => {
+  const calculateRetryDelay = (retry: number) => {
     // Exponential backoff with jitter
     const baseDelay = Math.min(
       CONFIG.MAX_RETRY_DELAY,
@@ -46,33 +49,33 @@ const ReceivedFiles: React.FC = () => {
     );
     // Add random jitter of up to 1 second
     return baseDelay + Math.random() * 1000;
-  }, []);
+  };
 
   const fetchFiles = useCallback(async (isRetry = false) => {
+    // Skip if component is unmounted
+    if (!isMountedRef.current) return;
+
     try {
       // If this is not a retry, check if we need to wait
       if (!isRetry) {
         const now = Date.now();
-        const timeSinceLastFetch = now - lastFetchTime;
+        const timeSinceLastFetch = now - lastFetchTimeRef.current;
         if (timeSinceLastFetch < CONFIG.POLL_INTERVAL) {
           // Skip this fetch if it's too soon
           return;
         }
       }
 
-      if (!loading) setLoading(true);
+      setLoading(true);
       setError(null);
-      
-      console.log('Fetching files from:', `${API_URL}/api/files/recent`);
       
       const response = await fetch(`${API_URL}/api/files/recent`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin
+          'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',
+        credentials: 'include',
         mode: 'cors'
       });
 
@@ -94,8 +97,8 @@ const ReceivedFiles: React.FC = () => {
       }
       
       // Reset retry count on successful fetch
-      setRetryCount(0);
-      setLastFetchTime(Date.now());
+      retryCountRef.current = 0;
+      lastFetchTimeRef.current = Date.now();
       
       // Mark files as new if they were uploaded in the last 5 minutes
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -104,33 +107,55 @@ const ReceivedFiles: React.FC = () => {
         isNew: new Date(file.uploadDate) > fiveMinutesAgo
       }));
       
-      setFiles(processedFiles);
-      setNewFilesCount(processedFiles.filter((f: FileInfo) => f.isNew).length);
+      if (isMountedRef.current) {
+        setFiles(processedFiles);
+        setNewFilesCount(processedFiles.filter((f: FileInfo) => f.isNew).length);
+      }
     } catch (err) {
       const errorMessage = err instanceof Error 
         ? `Error: ${err.message}`
         : 'An unknown error occurred';
-      setError(errorMessage);
+      
+      if (isMountedRef.current) {
+        setError(errorMessage);
+      }
       console.error('Error fetching files:', err);
 
       // Implement retry logic with exponential backoff
-      if (retryCount < CONFIG.MAX_RETRIES) {
-        const nextRetryCount = retryCount + 1;
-        setRetryCount(nextRetryCount);
-        const delay = calculateRetryDelay(nextRetryCount);
+      if (retryCountRef.current < CONFIG.MAX_RETRIES) {
+        retryCountRef.current += 1;
+        const delay = calculateRetryDelay(retryCountRef.current);
         await sleep(delay);
-        await fetchFiles(true); // Mark this as a retry attempt
+        if (isMountedRef.current) {
+          await fetchFiles(true); // Mark this as a retry attempt
+        }
       }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [loading, retryCount, lastFetchTime, calculateRetryDelay]);
+  }, []); // Empty dependency array since we're using refs
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
+    // Initial fetch
     fetchFiles();
-    const interval = setInterval(() => fetchFiles(), CONFIG.POLL_INTERVAL);
-    return () => clearInterval(interval);
-  }, [fetchFiles]);
+    
+    // Set up polling interval
+    const intervalId = setInterval(() => {
+      if (isMountedRef.current) {
+        fetchFiles();
+      }
+    }, CONFIG.POLL_INTERVAL);
+
+    // Cleanup
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(intervalId);
+    };
+  }, []); // Empty dependency array since fetchFiles has no dependencies
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -151,10 +176,9 @@ const ReceivedFiles: React.FC = () => {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin
+          'Content-Type': 'application/json'
         },
-        credentials: 'same-origin',
+        credentials: 'include',
         mode: 'cors'
       });
       setFiles(files.map(file => ({ ...file, isNew: false })));
@@ -165,7 +189,7 @@ const ReceivedFiles: React.FC = () => {
   };
 
   const renderContent = () => {
-    if (loading) {
+    if (loading && files.length === 0) {
       return (
         <Box sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="body1" color="text.secondary">
@@ -175,7 +199,7 @@ const ReceivedFiles: React.FC = () => {
       );
     }
 
-    if (error) {
+    if (error && files.length === 0) {
       return (
         <Box sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="body1" color="error">
@@ -200,34 +224,26 @@ const ReceivedFiles: React.FC = () => {
       <List sx={{ p: 0 }}>
         {files.map((file, index) => (
           <React.Fragment key={file._id}>
+            {index > 0 && <Divider />}
             <ListItem
               sx={{
-                py: 2,
-                bgcolor: file.isNew
-                  ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.1 : 0.05)
-                  : 'transparent',
-                transition: 'background-color 0.3s ease',
+                bgcolor: file.isNew ? alpha(theme.palette.info.main, 0.1) : 'transparent',
+                '&:hover': {
+                  bgcolor: file.isNew 
+                    ? alpha(theme.palette.info.main, 0.2)
+                    : alpha(theme.palette.action.hover, 0.1)
+                }
               }}
             >
+              <FolderIcon sx={{ mr: 2, color: 'primary.main' }} />
               <ListItemText
-                primary={
-                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {file.originalName}
-                  </Typography>
-                }
-                secondary={
-                  <>
-                    <Typography variant="body2" component="span" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                      Size: {formatFileSize(file.size)}
-                    </Typography>
-                    <Typography variant="body2" component="span" color="text.secondary" display="block">
-                      Uploaded: {formatDate(file.uploadDate)}
-                    </Typography>
-                  </>
-                }
+                primary={file.originalName}
+                secondary={`${formatFileSize(file.size)} • Uploaded ${formatDate(file.uploadDate)}`}
               />
+              {file.isNew && (
+                <Badge color="info" variant="dot" sx={{ ml: 2 }} />
+              )}
             </ListItem>
-            {index < files.length - 1 && <Divider />}
           </React.Fragment>
         ))}
       </List>
@@ -235,52 +251,19 @@ const ReceivedFiles: React.FC = () => {
   };
 
   return (
-    <Box sx={{ mt: 4 }}>
-      <Card
-        elevation={0}
-        sx={{
-          width: '100%',
-          borderRadius: 2,
-          bgcolor: theme.palette.mode === 'dark' 
-            ? alpha(theme.palette.background.paper, 0.6)
-            : alpha(theme.palette.background.paper, 0.8),
-          overflow: 'hidden',
-          maxHeight: '80vh',
-        }}
-      >
-        <Box 
-          sx={{ 
-            p: 2,
-            borderBottom: 1,
-            borderColor: 'divider',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            position: 'sticky',
-            top: 0,
-            bgcolor: theme.palette.mode === 'dark'
-              ? alpha(theme.palette.background.paper, 0.8)
-              : theme.palette.background.paper,
-            zIndex: 1,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Badge badgeContent={newFilesCount} color="primary">
-              <FolderIcon sx={{ color: theme.palette.primary.main, fontSize: 24 }} />
-            </Badge>
-            <Typography variant="h6" sx={{ fontWeight: 500, fontSize: '1.1rem' }}>
-              Received Files
-            </Typography>
-          </Box>
-          {newFilesCount > 0 && (
-            <IconButton onClick={markAllAsRead} size="small" color="primary" title="Mark all as read">
-              <DoneAllIcon />
-            </IconButton>
-          )}
-        </Box>
-        {renderContent()}
-      </Card>
-    </Box>
+    <Card>
+      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="h6" component="h2">
+          Received Files
+        </Typography>
+        {newFilesCount > 0 && (
+          <IconButton onClick={markAllAsRead} color="primary" title="Mark all as read">
+            <DoneAllIcon />
+          </IconButton>
+        )}
+      </Box>
+      {renderContent()}
+    </Card>
   );
 };
 

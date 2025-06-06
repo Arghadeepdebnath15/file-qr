@@ -5,16 +5,24 @@ const path = require('path');
 const QRCode = require('qrcode');
 const File = require('../models/File');
 const RecentHistory = require('../models/RecentHistory');
+const fs = require('fs');
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // Configure multer for file upload with quality preservation
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, path.join(__dirname, '../uploads/'));
+        cb(null, uploadsDir);
     },
     filename: function (req, file, cb) {
-        // Preserve original file extension
+        // Preserve original file extension and sanitize filename
         const ext = path.extname(file.originalname);
-        const name = path.basename(file.originalname, ext);
+        const name = path.basename(file.originalname, ext)
+            .replace(/[^a-zA-Z0-9]/g, '_'); // Sanitize filename
         cb(null, `${name}-${Date.now()}${ext}`);
     }
 });
@@ -22,7 +30,7 @@ const storage = multer.diskStorage({
 // Configure multer with limits and file filter
 const upload = multer({
     storage: storage,
-    preservePath: true, // Preserve full path of files
+    preservePath: true,
     limits: {
         fileSize: 1024 * 1024 * 1024, // 1GB limit
     },
@@ -34,25 +42,29 @@ const upload = multer({
         const mimetype = filetypes.test(file.mimetype.toLowerCase());
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
 
-        if (mimetype || extname) { // Changed from AND to OR to be more permissive
+        if (mimetype || extname) {
             return cb(null, true);
         }
         
-        // More descriptive error message
-        const ext = path.extname(file.originalname).toLowerCase();
-        cb(new Error(`File type '${ext}' is not supported. Supported file types: ${filetypes.toString().replace(/\//g, '')}`));
+        cb(new Error(`File type '${path.extname(file.originalname).toLowerCase()}' is not supported. Supported file types: ${filetypes.toString().replace(/\//g, '')}`));
     }
 });
+
+// Helper function to get base URL
+const getBaseUrl = (req) => {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    return `${protocol}://${host}`;
+};
 
 // Get recent files
 router.get('/recent', async (req, res) => {
     try {
         const files = await File.find()
-            .sort({ uploadDate: -1 })  // Sort by upload date, newest first
-            .limit(10);                // Limit to 10 most recent files
+            .sort({ uploadDate: -1 })
+            .limit(10);
 
-        // Add download URLs to the files
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const baseUrl = getBaseUrl(req);
         const filesWithUrls = files.map(file => {
             const fileObj = file.toObject();
             fileObj.url = `${baseUrl}/api/files/download/${file.filename}`;
@@ -62,7 +74,10 @@ router.get('/recent', async (req, res) => {
         res.json(filesWithUrls);
     } catch (error) {
         console.error('Error fetching recent files:', error);
-        res.status(500).json({ message: 'Error fetching recent files', error: error.message });
+        res.status(500).json({ 
+            message: 'Error fetching recent files', 
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error' 
+        });
     }
 });
 
@@ -103,7 +118,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             return res.status(400).json({ message: 'No file uploaded' });
         }
 
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const baseUrl = getBaseUrl(req);
         const downloadUrl = `${baseUrl}/api/files/download/${req.file.filename}`;
         
         // Generate QR code
@@ -121,10 +136,43 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
         await file.save();
 
-        res.status(201).json({ file, qrCode });
+        // Store in recent history if device ID is provided
+        const deviceId = req.headers['device-id'];
+        if (deviceId) {
+            let history = await RecentHistory.findOne({ deviceId });
+            if (!history) {
+                history = new RecentHistory({ deviceId, fileIds: [] });
+            }
+            history.fileIds.unshift(file._id);
+            if (history.fileIds.length > 10) {
+                history.fileIds.length = 10;
+            }
+            await history.save();
+        }
+
+        res.status(201).json({ 
+            file: {
+                ...file.toObject(),
+                url: downloadUrl
+            }, 
+            qrCode 
+        });
     } catch (error) {
         console.error('Upload error:', error);
-        res.status(500).json({ message: 'Error uploading file', error: error.message });
+        
+        // Clean up uploaded file if database operation fails
+        if (req.file && req.file.path) {
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch (unlinkError) {
+                console.error('Error cleaning up file:', unlinkError);
+            }
+        }
+        
+        res.status(500).json({ 
+            message: 'Error uploading file', 
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
     }
 });
 
@@ -301,13 +349,28 @@ router.get('/download/:filename', async (req, res) => {
             return res.status(404).json({ message: 'File not found' });
         }
 
-        // Increment download count
-        file.downloadCount += 1;
+        const filePath = path.join(uploadsDir, file.filename);
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ message: 'File not found on server' });
+        }
+
+        // Update download count
+        file.downloadCount = (file.downloadCount || 0) + 1;
         await file.save();
 
-        res.download(file.path, file.originalName);
+        // Set proper content type
+        res.setHeader('Content-Type', file.mimetype);
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.originalName)}"`);
+        
+        // Stream the file
+        const fileStream = fs.createReadStream(filePath);
+        fileStream.pipe(res);
     } catch (error) {
-        res.status(500).json({ message: 'Error downloading file', error: error.message });
+        console.error('Download error:', error);
+        res.status(500).json({ 
+            message: 'Error downloading file', 
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
     }
 });
 

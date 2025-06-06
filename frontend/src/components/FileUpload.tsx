@@ -121,8 +121,10 @@ const FileUpload: React.FC = () => {
       const response = await axios.post(`${API_URL}/api/files/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
-          'Device-Id': deviceId
+          'Device-Id': deviceId,
+          'Accept': 'application/json'
         },
+        withCredentials: true,
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const progress = (progressEvent.loaded / progressEvent.total) * 100;
@@ -130,20 +132,32 @@ const FileUpload: React.FC = () => {
           }
         },
         // Add timeout and retry configuration
-        timeout: 30000, // 30 seconds
+        timeout: 60000, // 60 seconds for large files
         validateStatus: (status) => status < 500, // Don't reject if status < 500
+        maxContentLength: Infinity, // Allow large files
+        maxBodyLength: Infinity // Allow large files
       });
 
       if (response.status !== 201 && response.status !== 200) {
         throw new Error(response.data?.message || 'Upload failed');
       }
 
-      setQrCode(response.data.qrCode);
-      setDownloadUrl(`${API_URL}/api/files/download/${response.data.file.filename}`);
+      // Ensure we have the correct URL format
+      const fileData = response.data.file;
+      const qrCode = response.data.qrCode;
+      
+      // Use the API_URL for the download URL to ensure correct domain
+      const downloadUrl = `${API_URL}/api/files/download/${fileData.filename}`;
+      
+      setQrCode(qrCode);
+      setDownloadUrl(downloadUrl);
       
       // Update recent history in localStorage
       const currentHistory = JSON.parse(localStorage.getItem('recentHistory') || '[]');
-      currentHistory.unshift(response.data.file);
+      currentHistory.unshift({
+        ...fileData,
+        url: downloadUrl // Ensure the URL is correct
+      });
       if (currentHistory.length > 10) {
         currentHistory.length = 10;
       }
@@ -151,11 +165,28 @@ const FileUpload: React.FC = () => {
       
       setShowQR(true);
       setError({ show: true, message: 'File uploaded successfully!', severity: 'success' });
+      
+      // Clear the file input
+      setFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (error: any) {
       console.error('Error uploading file:', error);
-      const errorMessage = error.response?.data?.message 
-        || error.message 
-        || 'Error uploading file. Please try again.';
+      let errorMessage = 'Error uploading file. Please try again.';
+      
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        errorMessage = error.response.data?.message || error.response.statusText;
+      } else if (error.request) {
+        // The request was made but no response was received
+        errorMessage = 'No response from server. Please check your connection.';
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        errorMessage = error.message;
+      }
+      
       setError({ show: true, message: errorMessage, severity: 'error' });
     } finally {
       setLoading(false);

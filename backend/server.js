@@ -12,53 +12,24 @@ const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 const corsOptions = {
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = process.env.NODE_ENV === 'production'
-      ? [
-          'https://qr-file-share-5ri5.onrender.com',
-          'https://qr-file-share.onrender.com',
-          'https://qr-file-share-5ri5.onrender.com',
-          'http://qr-file-share-5ri5.onrender.com',
-          'https://qrtransfer.netlify.app'
-        ]
-      : [
-          'http://localhost:3000',
-          'http://127.0.0.1:3000',
-          'http://localhost:5000',
-          'http://127.0.0.1:5000',
-          'http://192.168.1.4:3000',
-          'http://192.168.1.4:5000'
-        ];
-
-    // Check if the origin is in our allowedOrigins array
-    const isAllowed = allowedOrigins.some(allowedOrigin => {
-      // Convert both to URLs for proper comparison
-      try {
-        const allowedUrl = new URL(allowedOrigin);
-        const originUrl = new URL(origin);
-        return allowedUrl.origin === originUrl.origin;
-      } catch {
-        return false;
-      }
-    });
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins
+  credentials: true, // Allow credentials
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id', 'Accept', 'Origin'],
-  credentials: true,
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Device-Id'
+  ],
   maxAge: 86400 // 24 hours
 };
 
-// Apply CORS middleware first
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
+// Handle preflight requests
 app.options('*', cors(corsOptions));
 
 // Parse JSON bodies
@@ -67,13 +38,13 @@ app.use(express.json());
 // Serve uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/qr-file-share';
+// MongoDB connection string directly in code
+const MONGODB_URI = 'mongodb+srv://2023422375arghadeep:SjEckjBfyu8ECtBD@cluster0.y1rybwu.mongodb.net/qr-file-share?retryWrites=true&w=majority';
 
 const mongooseOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 10000, // Increase timeout to 10 seconds
+    serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
     family: 4,
     retryWrites: true,
@@ -102,11 +73,7 @@ mongoose.connection.on('disconnected', () => {
 const connectToMongo = async () => {
     try {
         await mongoose.connect(MONGODB_URI, mongooseOptions);
-        console.log('MongoDB connected successfully to:', 
-            process.env.NODE_ENV === 'production' 
-                ? '[PRODUCTION_DB]' 
-                : MONGODB_URI
-        );
+        console.log('MongoDB connected successfully');
         isMongoConnected = true;
     } catch (err) {
         console.error('MongoDB connection error:', err.message);
@@ -128,21 +95,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// Production-specific middleware to ensure API routes are handled correctly
-if (process.env.NODE_ENV === 'production') {
-    // Add a middleware to properly handle API routes
-    app.use('/api', (req, res, next) => {
-        res.setHeader('Content-Type', 'application/json');
-        // Add CORS headers for API routes
-        res.setHeader('Access-Control-Allow-Origin', corsOptions.origin);
-        res.setHeader('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
-        res.setHeader('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Max-Age', corsOptions.maxAge.toString());
-        next();
-    });
-}
-
 // API Routes
 app.use('/api/files', fileRoutes);
 
@@ -160,7 +112,8 @@ app.use('/api', (err, req, res, next) => {
     console.error('API Error:', err.message);
     res.status(500).json({ 
         message: 'Something went wrong!',
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+        database: isMongoConnected ? 'connected' : 'disconnected'
     });
 });
 
@@ -203,14 +156,12 @@ if (process.env.NODE_ENV === 'production') {
 
 // Final error handler
 app.use((err, req, res, next) => {
-    // Check if headers have been sent
     if (res.headersSent) {
         return next(err);
     }
 
     console.error('Unhandled Error:', err.message);
     
-    // Set proper content type based on request path
     const isApiRequest = req.path.startsWith('/api/');
     res.setHeader('Content-Type', isApiRequest ? 'application/json' : 'text/html');
 
