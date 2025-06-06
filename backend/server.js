@@ -21,7 +21,8 @@ const corsOptions = {
           'https://qr-file-share-5ri5.onrender.com',
           'https://qr-file-share.onrender.com',
           'https://qr-file-share-5ri5.onrender.com',
-          'http://qr-file-share-5ri5.onrender.com'
+          'http://qr-file-share-5ri5.onrender.com',
+          'https://qrtransfer.netlify.app'
         ]
       : [
           'http://localhost:3000',
@@ -32,15 +33,28 @@ const corsOptions = {
           'http://192.168.1.4:5000'
         ];
 
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+    // Check if the origin is in our allowedOrigins array
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      // Convert both to URLs for proper comparison
+      try {
+        const allowedUrl = new URL(allowedOrigin);
+        const originUrl = new URL(origin);
+        return allowedUrl.origin === originUrl.origin;
+      } catch {
+        return false;
+      }
+    });
+
+    if (isAllowed) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id'],
-  credentials: true
+  allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id', 'Accept', 'Origin'],
+  credentials: true,
+  maxAge: 86400 // 24 hours
 };
 
 // Apply CORS middleware first
@@ -92,6 +106,12 @@ if (process.env.NODE_ENV === 'production') {
     // Add a middleware to properly handle API routes
     app.use('/api', (req, res, next) => {
         res.setHeader('Content-Type', 'application/json');
+        // Add CORS headers for API routes
+        res.setHeader('Access-Control-Allow-Origin', corsOptions.origin);
+        res.setHeader('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
+        res.setHeader('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Max-Age', corsOptions.maxAge.toString());
         next();
     });
 }
@@ -115,9 +135,12 @@ app.use('/api', (err, req, res, next) => {
 
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
+    // Look for build files in the public directory first
+    const publicPath = path.join(__dirname, 'public');
     const buildPath = path.join(__dirname, '../frontend/build');
     
-    // Serve static files AFTER API routes
+    // Serve static files from public directory first, then try frontend/build
+    app.use(express.static(publicPath));
     app.use(express.static(buildPath));
 
     // Catch-all route for frontend - MUST come after API routes
@@ -130,13 +153,18 @@ if (process.env.NODE_ENV === 'production') {
             });
         }
 
-        const indexPath = path.join(buildPath, 'index.html');
-        if (require('fs').existsSync(indexPath)) {
-            res.sendFile(indexPath);
+        // Try to serve index.html from public directory first
+        const publicIndexPath = path.join(publicPath, 'index.html');
+        const buildIndexPath = path.join(buildPath, 'index.html');
+
+        if (require('fs').existsSync(publicIndexPath)) {
+            res.sendFile(publicIndexPath);
+        } else if (require('fs').existsSync(buildIndexPath)) {
+            res.sendFile(buildIndexPath);
         } else {
             res.status(503).json({ 
                 message: 'Application is starting up. If this persists, please contact support.',
-                details: process.env.NODE_ENV === 'development' ? 'Frontend build not found at: ' + buildPath : undefined
+                details: process.env.NODE_ENV === 'development' ? 'Frontend build not found at: ' + publicPath : undefined
             });
         }
     });

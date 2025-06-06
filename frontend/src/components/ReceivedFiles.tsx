@@ -69,9 +69,10 @@ const ReceivedFiles: React.FC = () => {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin
         },
-        credentials: 'include',
+        credentials: 'same-origin',
         mode: 'cors'
       });
 
@@ -147,7 +148,14 @@ const ReceivedFiles: React.FC = () => {
   const markAllAsRead = async () => {
     try {
       await fetch(`${API_URL}/api/files/mark-all-read`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin
+        },
+        credentials: 'same-origin',
+        mode: 'cors'
       });
       setFiles(files.map(file => ({ ...file, isNew: false })));
       setNewFilesCount(0);
