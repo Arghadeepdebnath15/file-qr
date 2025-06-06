@@ -164,6 +164,25 @@ router.get('/upload-page', (req, res) => {
                 text-align: center;
                 color: #666;
             }
+            .files-list {
+                margin-top: 20px;
+                border-top: 1px solid #eee;
+                padding-top: 20px;
+            }
+            .file-item {
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .file-name {
+                font-weight: 500;
+            }
+            .file-date {
+                color: #666;
+                font-size: 0.9em;
+            }
         </style>
     </head>
     <body>
@@ -174,8 +193,41 @@ router.get('/upload-page', (req, res) => {
                 <button type="submit" class="submit-btn">Upload</button>
             </form>
             <div id="status" class="status"></div>
+            <div id="filesList" class="files-list"></div>
         </div>
         <script>
+            // Function to format date
+            function formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleString();
+            }
+
+            // Function to fetch and display recent files
+            async function fetchRecentFiles() {
+                try {
+                    const response = await fetch('/api/files/recent');
+                    const files = await response.json();
+                    const filesList = document.getElementById('filesList');
+                    
+                    if (files.length === 0) {
+                        filesList.innerHTML = '<div style="text-align: center; color: #666;">No files uploaded yet</div>';
+                        return;
+                    }
+
+                    filesList.innerHTML = files.map(file => \`
+                        <div class="file-item">
+                            <div class="file-name">\${file.originalName}</div>
+                            <div class="file-date">\${formatDate(file.uploadDate)}</div>
+                        </div>
+                    \`).join('');
+                } catch (error) {
+                    console.error('Error fetching files:', error);
+                }
+            }
+
+            // Fetch files on page load
+            fetchRecentFiles();
+
             document.getElementById('uploadForm').onsubmit = async (e) => {
                 e.preventDefault();
                 const status = document.getElementById('status');
@@ -191,6 +243,10 @@ router.get('/upload-page', (req, res) => {
                     if (response.ok) {
                         status.textContent = 'File uploaded successfully!';
                         status.style.color = '#4caf50';
+                        // Refresh the files list
+                        fetchRecentFiles();
+                        // Reset the form
+                        e.target.reset();
                     } else {
                         throw new Error(data.message || 'Upload failed');
                     }

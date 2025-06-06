@@ -5,14 +5,13 @@ import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ScannerIcon from '@mui/icons-material/Scanner';
+import { API_URL } from '../config';
 
 const UploadQRCode: React.FC = () => {
   const theme = useTheme();
   
   // Get the base URL for the upload page
-  const uploadUrl = window.location.hostname === 'localhost'
-    ? 'http://localhost:5000/api/files/upload-page'
-    : `http://${window.location.hostname}:5000/api/files/upload-page`;
+  const uploadUrl = `${API_URL}/api/files/upload-page`;
 
   return (
     <Zoom in={true}>
