@@ -15,7 +15,7 @@ import FolderIcon from '@mui/icons-material/Folder';
 import NoFilesIcon from '@mui/icons-material/FileCopy';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { useTheme } from '@mui/material/styles';
-import { API_URL } from '../config';
+import { API_URL, CONFIG } from '../config';
 
 interface FileInfo {
   _id: string;
@@ -33,10 +33,13 @@ const ReceivedFiles: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newFilesCount, setNewFilesCount] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const fetchFiles = async () => {
     try {
-      setLoading(true);
+      if (!loading) setLoading(true);
       setError(null);
       
       console.log('Fetching files from:', `${API_URL}/api/files/recent`);
@@ -46,12 +49,20 @@ const ReceivedFiles: React.FC = () => {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
-        }
+        },
+        credentials: 'include',
+        mode: 'cors'
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        let errorMessage;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
+        } catch {
+          errorMessage = `HTTP error! status: ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -59,6 +70,9 @@ const ReceivedFiles: React.FC = () => {
       if (!Array.isArray(data)) {
         throw new Error('Invalid response format: expected an array');
       }
+      
+      // Reset retry count on successful fetch
+      setRetryCount(0);
       
       // Mark files as new if they were uploaded in the last 5 minutes
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -71,10 +85,17 @@ const ReceivedFiles: React.FC = () => {
       setNewFilesCount(processedFiles.filter((f: FileInfo) => f.isNew).length);
     } catch (err) {
       const errorMessage = err instanceof Error 
-        ? `Error: ${err.message}. Backend URL: ${API_URL}`
+        ? `Error: ${err.message}`
         : 'An unknown error occurred';
       setError(errorMessage);
       console.error('Error fetching files:', err);
+
+      // Implement retry logic
+      if (retryCount < CONFIG.MAX_RETRIES) {
+        setRetryCount(prev => prev + 1);
+        await sleep(CONFIG.RETRY_DELAY);
+        await fetchFiles();
+      }
     } finally {
       setLoading(false);
     }
@@ -82,8 +103,8 @@ const ReceivedFiles: React.FC = () => {
 
   useEffect(() => {
     fetchFiles();
-    // Poll for new files every 5 seconds for more responsive updates
-    const interval = setInterval(fetchFiles, 5000);
+    // Poll for new files
+    const interval = setInterval(fetchFiles, CONFIG.POLL_INTERVAL);
     return () => clearInterval(interval);
   }, []);
 

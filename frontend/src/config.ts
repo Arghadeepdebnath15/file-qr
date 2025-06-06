@@ -10,8 +10,16 @@ const getApiUrl = () => {
     return `http://${window.location.hostname}:5000`;
   }
 
-  // In production, use the production URL
-  return 'https://qr-file-share-5ri5.onrender.com';
+  // In production, use the same origin as the frontend
+  // This ensures the API calls go to the same domain
+  return window.location.origin;
 };
 
-export const API_URL = getApiUrl(); 
+export const API_URL = getApiUrl();
+
+// Export additional configuration
+export const CONFIG = {
+  POLL_INTERVAL: 5000, // 5 seconds
+  MAX_RETRIES: 3,
+  RETRY_DELAY: 1000, // 1 second
+}; 

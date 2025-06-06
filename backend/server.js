@@ -12,18 +12,33 @@ const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://qr-file-share-5ri5.onrender.com']
-    : [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'http://192.168.1.4:3000',
-        'http://localhost:5000',
-        'http://127.0.0.1:5000',
-        'http://192.168.1.4:5000'
-      ],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.NODE_ENV === 'production'
+      ? [
+          'https://qr-file-share-5ri5.onrender.com',
+          'https://qr-file-share.onrender.com'
+        ]
+      : [
+          'http://localhost:3000',
+          'http://127.0.0.1:3000',
+          'http://localhost:5000',
+          'http://127.0.0.1:5000',
+          'http://192.168.1.4:3000',
+          'http://192.168.1.4:5000'
+        ];
+
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Device-Id'],
+  credentials: true // Allow credentials
 };
 
 app.use(cors(corsOptions));
