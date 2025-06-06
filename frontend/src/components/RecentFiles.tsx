@@ -30,6 +30,7 @@ import QRCode from 'react-qr-code';
 import axios from 'axios';
 import { API_URL } from '../config';
 import DeviceManager from './DeviceManager';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 interface FileInfo {
   _id: string;
@@ -151,28 +152,31 @@ const RecentFiles: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth={false} sx={{ 
-        height: '100vh',
-        py: 4,
-        px: { xs: 2, sm: 3, md: 4 },
-        bgcolor: alpha(theme.palette.primary.main, 0.03),
-      }}>
+      <Container 
+        maxWidth={false} 
+        sx={{ 
+          py: 4,
+          px: { xs: 2, sm: 3, md: 4 },
+          bgcolor: alpha(theme.palette.primary.main, 0.03),
+        }}
+      >
         <Paper
           elevation={0}
           sx={{
-            height: '100%',
             bgcolor: 'transparent',
             display: 'flex',
             flexDirection: 'column',
             gap: 3,
+            maxWidth: { sm: '100%', md: '90%', lg: '85%' },
+            mx: 'auto',
           }}
         >
           <Box sx={{ position: 'relative' }}>
             <DeviceManager onClearHistory={handleClearAll} onRefresh={fetchRecentFiles} />
           </Box>
 
-          <Card 
-            sx={{ 
+          <Card
+            sx={{
               flexGrow: 1,
               display: 'flex',
               flexDirection: 'column',
@@ -180,6 +184,7 @@ const RecentFiles: React.FC = () => {
               boxShadow: theme.shadows[3],
               bgcolor: 'background.paper',
               overflow: 'hidden',
+              width: '100%',
             }}
           >
             <CardContent sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -352,59 +357,8 @@ const RecentFiles: React.FC = () => {
                   </List>
                 )}
               </Box>
-        </CardContent>
-      </Card>
-
-          <Dialog 
-            open={showQRDialog} 
-            onClose={() => setShowQRDialog(false)} 
-            maxWidth="sm" 
-            fullWidth
-            PaperProps={{
-              sx: {
-                borderRadius: 3,
-                p: 2,
-              },
-            }}
-          >
-            <DialogTitle sx={{ 
-              textAlign: 'center',
-              fontWeight: 600,
-              pb: 3,
-            }}>
-              Scan QR Code to Download
-            </DialogTitle>
-            <DialogContent sx={{ textAlign: 'center', pb: 4 }}>
-              {selectedFile && (
-                <Fade in timeout={500}>
-                  <Box sx={{ 
-                    mt: 2,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 3,
-                  }}>
-                    <Paper
-                      elevation={4}
-                      sx={{ 
-                        p: 4,
-                        borderRadius: 3,
-                        bgcolor: 'background.paper',
-                      }}
-                    >
-                      <QRCode 
-                        value={`${API_URL}/api/files/download/${selectedFile.filename}`}
-                        size={256}
-                      />
-                    </Paper>
-                    <Typography variant="body1" color="text.secondary">
-                      Scan this QR code to download <strong>{selectedFile.originalName}</strong>
-                    </Typography>
-                  </Box>
-                </Fade>
-              )}
-            </DialogContent>
-          </Dialog>
+            </CardContent>
+          </Card>
         </Paper>
       </Container>
     );
@@ -412,28 +366,31 @@ const RecentFiles: React.FC = () => {
 
   if (error) {
     return (
-      <Container maxWidth={false} sx={{ 
-        height: '100vh',
-        py: 4,
-        px: { xs: 2, sm: 3, md: 4 },
-        bgcolor: alpha(theme.palette.primary.main, 0.03),
-      }}>
+      <Container 
+        maxWidth={false} 
+        sx={{ 
+          py: 4,
+          px: { xs: 2, sm: 3, md: 4 },
+          bgcolor: alpha(theme.palette.primary.main, 0.03),
+        }}
+      >
         <Paper
           elevation={0}
           sx={{
-            height: '100%',
             bgcolor: 'transparent',
             display: 'flex',
             flexDirection: 'column',
             gap: 3,
+            maxWidth: { sm: '100%', md: '90%', lg: '85%' },
+            mx: 'auto',
           }}
         >
           <Box sx={{ position: 'relative' }}>
             <DeviceManager onClearHistory={handleClearAll} onRefresh={fetchRecentFiles} />
           </Box>
 
-          <Card 
-            sx={{ 
+          <Card
+            sx={{
               flexGrow: 1,
               display: 'flex',
               flexDirection: 'column',
@@ -441,6 +398,7 @@ const RecentFiles: React.FC = () => {
               boxShadow: theme.shadows[3],
               bgcolor: 'background.paper',
               overflow: 'hidden',
+              width: '100%',
             }}
           >
             <CardContent sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -613,87 +571,39 @@ const RecentFiles: React.FC = () => {
                   </List>
                 )}
               </Box>
-        </CardContent>
-      </Card>
-
-          <Dialog 
-            open={showQRDialog} 
-            onClose={() => setShowQRDialog(false)} 
-            maxWidth="sm" 
-            fullWidth
-            PaperProps={{
-              sx: {
-                borderRadius: 3,
-                p: 2,
-              },
-            }}
-          >
-            <DialogTitle sx={{ 
-              textAlign: 'center',
-              fontWeight: 600,
-              pb: 3,
-            }}>
-              Scan QR Code to Download
-            </DialogTitle>
-            <DialogContent sx={{ textAlign: 'center', pb: 4 }}>
-              {selectedFile && (
-                <Fade in timeout={500}>
-                  <Box sx={{ 
-                    mt: 2,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 3,
-                  }}>
-                    <Paper
-                      elevation={4}
-                      sx={{ 
-                        p: 4,
-                        borderRadius: 3,
-                        bgcolor: 'background.paper',
-                      }}
-                    >
-                      <QRCode 
-                        value={`${API_URL}/api/files/download/${selectedFile.filename}`}
-                        size={256}
-                      />
-                    </Paper>
-                    <Typography variant="body1" color="text.secondary">
-                      Scan this QR code to download <strong>{selectedFile.originalName}</strong>
-                    </Typography>
-                  </Box>
-                </Fade>
-              )}
-            </DialogContent>
-          </Dialog>
+            </CardContent>
+          </Card>
         </Paper>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth={false} sx={{ 
-      height: '100vh',
-      py: 4,
-      px: { xs: 2, sm: 3, md: 4 },
-      bgcolor: alpha(theme.palette.primary.main, 0.03),
-    }}>
+    <Container 
+      maxWidth={false} 
+      sx={{ 
+        py: 4,
+        px: { xs: 2, sm: 3, md: 4 },
+        bgcolor: alpha(theme.palette.primary.main, 0.03),
+      }}
+    >
       <Paper
         elevation={0}
         sx={{
-          height: '100%',
           bgcolor: 'transparent',
           display: 'flex',
           flexDirection: 'column',
           gap: 3,
+          maxWidth: { sm: '100%', md: '90%', lg: '85%' },
+          mx: 'auto',
         }}
       >
         <Box sx={{ position: 'relative' }}>
           <DeviceManager onClearHistory={handleClearAll} onRefresh={fetchRecentFiles} />
         </Box>
 
-        <Card 
-          sx={{ 
+        <Card
+          sx={{
             flexGrow: 1,
             display: 'flex',
             flexDirection: 'column',
@@ -701,6 +611,7 @@ const RecentFiles: React.FC = () => {
             boxShadow: theme.shadows[3],
             bgcolor: 'background.paper',
             overflow: 'hidden',
+            width: '100%',
           }}
         >
           <CardContent sx={{ p: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -719,7 +630,7 @@ const RecentFiles: React.FC = () => {
                 <FolderIcon sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
                 <Typography variant="h5" sx={{ fontWeight: 600 }}>
                   Your Files
-          </Typography>
+                </Typography>
               </Box>
               {files.length > 0 && (
                 <Fade in>
@@ -783,29 +694,29 @@ const RecentFiles: React.FC = () => {
                               bgcolor: alpha(theme.palette.primary.main, 0.03),
                             },
                             transition: 'background-color 0.2s ease',
-                    }}
-                  >
-                    <ListItemText
+                          }}
+                        >
+                          <ListItemText
                             primary={
                               <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>
                                 {file.originalName}
                               </Typography>
                             }
-                      secondary={
-                        <Box sx={{ mt: 1 }}>
-                          <Chip
-                            size="small"
-                            label={formatFileSize(file.size)}
+                            secondary={
+                              <Box sx={{ mt: 1 }}>
+                                <Chip
+                                  size="small"
+                                  label={formatFileSize(file.size)}
                                   sx={{ 
                                     mr: 1,
                                     bgcolor: alpha(theme.palette.primary.main, 0.1),
                                     color: theme.palette.primary.main,
                                   }}
-                          />
-                          <Chip
-                            size="small"
-                            icon={<FileDownloadIcon />}
-                            label={`${file.downloadCount} downloads`}
+                                />
+                                <Chip
+                                  size="small"
+                                  icon={<FileDownloadIcon />}
+                                  label={`${file.downloadCount} downloads`}
                                   sx={{ 
                                     mr: 1,
                                     bgcolor: alpha(theme.palette.success.main, 0.1),
@@ -820,39 +731,39 @@ const RecentFiles: React.FC = () => {
                                     color: 'text.secondary',
                                   }}
                                 >
-                            Uploaded: {formatDate(file.uploadDate)}
-                          </Typography>
-                        </Box>
-                      }
-                    />
+                                  Uploaded: {formatDate(file.uploadDate)}
+                                </Typography>
+                              </Box>
+                            }
+                          />
                           <Box sx={{ 
                             display: 'flex',
                             gap: 1,
                           }}>
-                      <IconButton
-                        onClick={() => handleShowQR(file)}
-                        color="primary"
-                        title="Show QR Code"
+                            <IconButton
+                              onClick={() => handleShowQR(file)}
+                              color="primary"
+                              title="Show QR Code"
                               sx={{ 
                                 '&:hover': { 
                                   bgcolor: alpha(theme.palette.primary.main, 0.1),
                                 },
                               }}
-                      >
-                        <QrCodeIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleDownload(file.filename, file.originalName)}
-                        color="primary"
-                        title="Download file"
+                            >
+                              <QrCodeIcon />
+                            </IconButton>
+                            <IconButton
+                              onClick={() => handleDownload(file.filename, file.originalName)}
+                              color="primary"
+                              title="Download file"
                               sx={{ 
                                 '&:hover': { 
                                   bgcolor: alpha(theme.palette.primary.main, 0.1),
                                 },
                               }}
-                      >
-                        <DownloadIcon />
-                      </IconButton>
+                            >
+                              <DownloadIcon />
+                            </IconButton>
                             <IconButton
                               onClick={() => handleDeleteFile(file._id)}
                               color="error"
@@ -865,67 +776,16 @@ const RecentFiles: React.FC = () => {
                             >
                               <DeleteIcon />
                             </IconButton>
-                    </Box>
-                  </ListItem>
+                          </Box>
+                        </ListItem>
                       </Box>
                     </Grow>
-              ))}
-            </List>
-          )}
+                  ))}
+                </List>
+              )}
             </Box>
-        </CardContent>
-      </Card>
-
-        <Dialog 
-          open={showQRDialog} 
-          onClose={() => setShowQRDialog(false)} 
-          maxWidth="sm" 
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: 3,
-              p: 2,
-            },
-          }}
-        >
-          <DialogTitle sx={{ 
-            textAlign: 'center',
-            fontWeight: 600,
-            pb: 3,
-          }}>
-            Scan QR Code to Download
-          </DialogTitle>
-          <DialogContent sx={{ textAlign: 'center', pb: 4 }}>
-          {selectedFile && (
-              <Fade in timeout={500}>
-                <Box sx={{ 
-                  mt: 2,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 3,
-                }}>
-                  <Paper
-                    elevation={4}
-                    sx={{ 
-                      p: 4,
-                      borderRadius: 3,
-                      bgcolor: 'background.paper',
-                    }}
-                  >
-              <QRCode 
-                      value={`${API_URL}/api/files/download/${selectedFile.filename}`}
-                size={256} 
-              />
-                  </Paper>
-                  <Typography variant="body1" color="text.secondary">
-                    Scan this QR code to download <strong>{selectedFile.originalName}</strong>
-              </Typography>
-            </Box>
-              </Fade>
-          )}
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
       </Paper>
     </Container>
   );
