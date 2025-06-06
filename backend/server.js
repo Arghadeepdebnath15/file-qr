@@ -68,37 +68,64 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // MongoDB connection
-const MONGODB_URI = process.env.NODE_ENV === 'production'
-    ? process.env.MONGODB_URI
-    : 'mongodb://localhost:27017/qr-file-share';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/qr-file-share';
 
 const mongooseOptions = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 10000, // Increase timeout to 10 seconds
     socketTimeoutMS: 45000,
-    family: 4
+    family: 4,
+    retryWrites: true,
+    retryReads: true
 };
 
-mongoose.connect(MONGODB_URI, mongooseOptions)
-.then(() => {
-    console.log('MongoDB connected successfully to:', 
-        process.env.NODE_ENV === 'production' 
-            ? '[PRODUCTION_DB]' 
-            : MONGODB_URI
-    );
-})
-.catch((err) => {
-    console.error('MongoDB connection error:', err.message);
-    process.exit(1);
+// Track MongoDB connection status
+let isMongoConnected = false;
+
+mongoose.connection.on('connected', () => {
+    console.log('MongoDB connected successfully');
+    isMongoConnected = true;
 });
 
 mongoose.connection.on('error', (err) => {
-    console.error('MongoDB error after initial connection:', err.message);
+    console.error('MongoDB connection error:', err.message);
+    isMongoConnected = false;
 });
 
 mongoose.connection.on('disconnected', () => {
     console.warn('MongoDB disconnected. Attempting to reconnect...');
+    isMongoConnected = false;
+});
+
+// Connect to MongoDB
+const connectToMongo = async () => {
+    try {
+        await mongoose.connect(MONGODB_URI, mongooseOptions);
+        console.log('MongoDB connected successfully to:', 
+            process.env.NODE_ENV === 'production' 
+                ? '[PRODUCTION_DB]' 
+                : MONGODB_URI
+        );
+        isMongoConnected = true;
+    } catch (err) {
+        console.error('MongoDB connection error:', err.message);
+        isMongoConnected = false;
+    }
+};
+
+// Initial connection attempt
+connectToMongo();
+
+// Middleware to check MongoDB connection
+app.use((req, res, next) => {
+    if (!isMongoConnected && req.path.startsWith('/api/')) {
+        return res.status(503).json({
+            message: 'Database connection is not available. Please try again later.',
+            error: 'MongoDB connection error'
+        });
+    }
+    next();
 });
 
 // Production-specific middleware to ensure API routes are handled correctly
@@ -121,7 +148,11 @@ app.use('/api/files', fileRoutes);
 
 // API health check endpoint
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'API is running' });
+    res.json({ 
+        status: isMongoConnected ? 'ok' : 'degraded',
+        message: isMongoConnected ? 'API is running' : 'API is running but database is not connected',
+        database: isMongoConnected ? 'connected' : 'disconnected'
+    });
 });
 
 // Error handling middleware for API routes
@@ -186,7 +217,8 @@ app.use((err, req, res, next) => {
     if (isApiRequest) {
         res.status(500).json({ 
             message: 'Something went wrong!',
-            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+            database: isMongoConnected ? 'connected' : 'disconnected'
         });
     } else {
         res.status(500).send('Internal Server Error');
