@@ -152,7 +152,7 @@ const FileUpload: React.FC = () => {
         });
 
         // Upload all chunks in parallel
-        const results = await Promise.all(chunkPromises);
+        await Promise.all(chunkPromises);
         
         // Merge chunks on server
         const mergeResponse = await axios.post(`${API_URL}/api/files/merge-chunks`, {
