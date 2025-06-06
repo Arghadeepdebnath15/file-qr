@@ -1,6 +1,6 @@
 {
-  "short_name": "FileShare Hub",
-  "name": "FileShare Hub - Personal File Sharing Platform",
+  "short_name": "QR File Transfer",
+  "name": "QR File Transfer - Share Files via QR Codes",
   "icons": [
     {
       "src": "favicon.ico",

@@ -116,84 +116,35 @@ const FileUpload: React.FC = () => {
     const formData = new FormData();
     formData.append('file', file);
     
-    const deviceId = getDeviceId();
-    const chunkSize = 1024 * 1024 * 2; // 2MB chunks for better performance
-    const totalChunks = Math.ceil(file.size / chunkSize);
+    // Add password protection parameters
+    if (isPasswordProtected && password) {
+      formData.append('isPasswordProtected', 'true');
+      formData.append('password', password);
+    }
     
+    const deviceId = getDeviceId();
+
     try {
-      if (file.size > chunkSize && totalChunks > 1) {
-        // Large file - use chunked upload
-        const chunks: Blob[] = [];
-        for (let i = 0; i < totalChunks; i++) {
-          const start = i * chunkSize;
-          const end = Math.min(start + chunkSize, file.size);
-          chunks.push(file.slice(start, end));
-        }
-
-        let uploadedChunks = 0;
-        const chunkPromises = chunks.map(async (chunk, index) => {
-          const chunkForm = new FormData();
-          chunkForm.append('file', chunk, `${file.name}.part${index}`);
-          chunkForm.append('totalChunks', totalChunks.toString());
-          chunkForm.append('chunkIndex', index.toString());
-          chunkForm.append('originalName', file.name);
-
-          const response = await axios.post(`${API_URL}/api/files/upload-chunk`, chunkForm, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-              'Device-Id': deviceId,
-              'Accept': 'application/json'
-            },
-            onUploadProgress: (progressEvent) => {
-              if (progressEvent.total) {
-                uploadedChunks++;
-                const totalProgress = ((uploadedChunks / totalChunks) * 100);
-                setUploadProgress(Math.round(totalProgress));
-              }
-            },
-          });
-
-          return response.data;
-        });
-
-        // Upload all chunks in parallel
-        await Promise.all(chunkPromises);
-        
-        // Merge chunks on server
-        const mergeResponse = await axios.post(`${API_URL}/api/files/merge-chunks`, {
-          fileName: file.name,
-          totalChunks,
-        }, {
-          headers: {
-            'Device-Id': deviceId,
-            'Accept': 'application/json'
+      const response = await axios.post(`${API_URL}/api/files/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Device-Id': deviceId,
+          'Accept': 'application/json'
+        },
+        withCredentials: true,
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const progress = (progressEvent.loaded / progressEvent.total) * 100;
+            setUploadProgress(Math.round(progress));
           }
-        });
+        },
+      });
 
-        return mergeResponse.data;
-      } else {
-        // Small file - use regular upload
-        const response = await axios.post(`${API_URL}/api/files/upload`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            'Device-Id': deviceId,
-            'Accept': 'application/json'
-          },
-          withCredentials: true,
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const progress = (progressEvent.loaded / progressEvent.total) * 100;
-              setUploadProgress(Math.round(progress));
-            }
-          },
-        });
-
-        return response.data;
-      }
+      return response.data;
     } catch (error) {
       throw error;
     }
-  }, []);
+  }, [isPasswordProtected, password]);
 
   const handleUpload = useCallback(async () => {
     if (!file) return;
@@ -204,13 +155,6 @@ const FileUpload: React.FC = () => {
     setShowQR(false);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (isPasswordProtected && password) {
-        formData.append('isPasswordProtected', 'true');
-        formData.append('password', password);
-      }
-
       const result = await uploadFile(file);
 
       // Generate QR code immediately after successful upload
@@ -246,7 +190,7 @@ const FileUpload: React.FC = () => {
       setLoading(false);
       setUploadProgress(0);
     }
-  }, [file, uploadFile, isPasswordProtected, password]);
+  }, [file, uploadFile]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';

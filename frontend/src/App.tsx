@@ -199,7 +199,7 @@ function App() {
                   mb: 2,
                 }}
               >
-                FileShare Hub
+                QR File Transfer
               </Typography>
               <Typography 
                 variant="h6" 
@@ -211,7 +211,7 @@ function App() {
                   opacity: 0.8,
                 }}
               >
-                Your Personal File Sharing Platform - Fast, Secure, and Easy to Use
+                Share Files Instantly with QR Codes - Fast, Secure, and Easy to Use
               </Typography>
             </Box>
 

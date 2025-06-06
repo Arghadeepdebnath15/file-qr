@@ -297,6 +297,21 @@ const ReceivedFiles: React.FC = () => {
       throw new Error(`Failed to download file (Status: ${response.status})`);
     }
 
+    // Check if the response is JSON (error message) or a blob (actual file)
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
+      if (data.requiresPassword) {
+        setPasswordDialog({
+          open: true,
+          fileId: file._id,
+          filename: file.filename
+        });
+        return;
+      }
+      throw new Error(data.message || 'Failed to download file');
+    }
+
     const blob = await response.blob();
     if (blob.size === 0) {
       throw new Error('Downloaded file is empty');
