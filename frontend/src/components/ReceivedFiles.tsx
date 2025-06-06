@@ -9,11 +9,13 @@ import {
   Divider,
   Badge,
   IconButton,
+  Button,
   alpha,
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import NoFilesIcon from '@mui/icons-material/FileCopy';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useTheme } from '@mui/material/styles';
 import { API_URL, CONFIG } from '../config';
 
@@ -33,6 +35,7 @@ const ReceivedFiles: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newFilesCount, setNewFilesCount] = useState(0);
+  const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
   
   // Use refs for values that shouldn't trigger re-renders
   const retryCountRef = useRef(0);
@@ -195,62 +198,177 @@ const ReceivedFiles: React.FC = () => {
     }
   };
 
+  const handleDownload = async (file: FileInfo) => {
+    if (downloadingFiles.has(file._id)) return;
+    
+    try {
+      setDownloadingFiles(prev => {
+        const next = new Set(prev);
+        next.add(file._id);
+        return next;
+      });
+      const downloadUrl = `${API_URL}/api/files/download/${file.filename}`;
+      
+      console.log('Attempting to download file:', file.originalName);
+      console.log('Download URL:', downloadUrl);
+      
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
+        } catch {
+          errorMessage = `Failed to download file (Status: ${response.status})`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Get the blob from the response
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error('Downloaded file is empty');
+      }
+      
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.originalName;
+      
+      // Append to body, click, and clean up
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL
+      window.URL.revokeObjectURL(url);
+      
+      console.log('File download completed:', file.originalName);
+    } catch (err) {
+      console.error('Download error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to download file';
+      setError(`Error downloading ${file.originalName}: ${errorMessage}`);
+      
+      // Clear error after 5 seconds
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setDownloadingFiles(prev => {
+        const next = new Set(prev);
+        next.delete(file._id);
+        return next;
+      });
+    }
+  };
+
   const renderContent = () => {
     if (loading && files.length === 0) {
       return (
-        <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="body1" color="text.secondary">
-            Loading...
-          </Typography>
+        <Box sx={{ textAlign: 'center', py: 3 }}>
+          <Typography>Loading files...</Typography>
         </Box>
       );
     }
 
-    if (error && files.length === 0) {
+    if (error) {
       return (
-        <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="body1" color="error">
-            {error}
-          </Typography>
+        <Box sx={{ textAlign: 'center', py: 3 }}>
+          <Typography color="error">{error}</Typography>
         </Box>
       );
     }
 
     if (files.length === 0) {
       return (
-        <Box sx={{ p: 4, textAlign: 'center' }}>
-          <NoFilesIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="body1" color="text.secondary">
-            No files received yet
-          </Typography>
+        <Box sx={{ 
+          textAlign: 'center', 
+          py: 3,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <NoFilesIcon sx={{ fontSize: 48, color: 'text.secondary' }} />
+          <Typography color="text.secondary">No files received yet</Typography>
         </Box>
       );
     }
 
     return (
-      <List sx={{ p: 0 }}>
+      <List>
         {files.map((file, index) => (
           <React.Fragment key={file._id}>
-            {index > 0 && <Divider />}
             <ListItem
               sx={{
                 bgcolor: file.isNew ? alpha(theme.palette.info.main, 0.1) : 'transparent',
-                '&:hover': {
-                  bgcolor: file.isNew 
-                    ? alpha(theme.palette.info.main, 0.2)
-                    : alpha(theme.palette.action.hover, 0.1)
-                }
+                borderRadius: 1,
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: { xs: 'stretch', sm: 'center' },
+                gap: 1,
+                py: 2,
               }}
             >
-              <FolderIcon sx={{ mr: 2, color: 'primary.main' }} />
-              <ListItemText
-                primary={file.originalName}
-                secondary={`${formatFileSize(file.size)} • Uploaded ${formatDate(file.uploadDate)}`}
-              />
-              {file.isNew && (
-                <Badge color="info" variant="dot" sx={{ ml: 2 }} />
-              )}
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                flex: 1,
+                minWidth: 0, // This ensures text truncation works
+              }}>
+                <FolderIcon sx={{ mr: 2, color: 'primary.main' }} />
+                <ListItemText
+                  primary={
+                    <Typography
+                      variant="subtitle1"
+                      sx={{
+                        fontWeight: file.isNew ? 600 : 400,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {file.originalName}
+                    </Typography>
+                  }
+                  secondary={
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: { xs: 'column', sm: 'row' },
+                      gap: { xs: 0.5, sm: 2 },
+                      color: 'text.secondary',
+                      '& > span': {
+                        fontSize: '0.875rem',
+                      }
+                    }}>
+                      <span>{formatFileSize(file.size)}</span>
+                      <span>{formatDate(file.uploadDate)}</span>
+                    </Box>
+                  }
+                />
+              </Box>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<DownloadIcon />}
+                onClick={() => handleDownload(file)}
+                disabled={downloadingFiles.has(file._id)}
+                sx={{
+                  minWidth: 120,
+                  alignSelf: { xs: 'stretch', sm: 'center' }
+                }}
+              >
+                {downloadingFiles.has(file._id) ? 'Downloading...' : 'Download'}
+              </Button>
             </ListItem>
+            {index < files.length - 1 && <Divider />}
           </React.Fragment>
         ))}
       </List>
@@ -258,18 +376,37 @@ const ReceivedFiles: React.FC = () => {
   };
 
   return (
-    <Card>
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography variant="h6" component="h2">
-          Received Files
-        </Typography>
+    <Card sx={{ 
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      <Box sx={{ 
+        p: 2, 
+        display: 'flex', 
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottom: 1,
+        borderColor: 'divider'
+      }}>
+        <Badge badgeContent={newFilesCount} color="primary">
+          <Typography variant="h6" component="h2">
+            Received Files
+          </Typography>
+        </Badge>
         {newFilesCount > 0 && (
-          <IconButton onClick={markAllAsRead} color="primary" title="Mark all as read">
+          <IconButton onClick={markAllAsRead} size="small" title="Mark all as read">
             <DoneAllIcon />
           </IconButton>
         )}
       </Box>
-      {renderContent()}
+      <Box sx={{ 
+        flex: 1,
+        overflow: 'auto',
+        p: 2
+      }}>
+        {renderContent()}
+      </Box>
     </Card>
   );
 };
