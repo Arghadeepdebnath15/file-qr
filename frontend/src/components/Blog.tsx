@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Box,
   Container,
@@ -25,6 +25,35 @@ import PhonelinkIcon from '@mui/icons-material/Phonelink';
 
 const Blog: React.FC = () => {
   const theme = useTheme();
+
+  useEffect(() => {
+    console.log('Blog component mounted');
+    // Log theme mode to verify it's working
+    console.log('Current theme mode:', theme.palette.mode);
+  }, [theme.palette.mode]);
+
+  // Error boundary
+  const [hasError, setHasError] = React.useState(false);
+
+  if (hasError) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography variant="h6" color="error">
+          Something went wrong loading the blog section.
+        </Typography>
+      </Box>
+    );
+  }
+
+  React.useEffect(() => {
+    const handleError = (error: ErrorEvent) => {
+      console.error('Blog component error:', error);
+      setHasError(true);
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
 
   const getIcon = (iconName: string) => {
     switch (iconName) {

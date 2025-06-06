@@ -30,9 +30,17 @@ document.head.appendChild(poppinsFont);
 
 function App() {
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
-  const [mode, setMode] = React.useState<'light' | 'dark'>(
-    localStorage.getItem('themeMode') as 'light' | 'dark' || (prefersDarkMode ? 'dark' : 'light')
-  );
+  const [mode, setMode] = React.useState<'light' | 'dark'>(() => {
+    // Try to get the stored theme
+    const storedTheme = localStorage.getItem('themeMode');
+    // If no stored theme, use system preference
+    if (!storedTheme) {
+      const systemTheme = prefersDarkMode ? 'dark' : 'light';
+      localStorage.setItem('themeMode', systemTheme);
+      return systemTheme;
+    }
+    return storedTheme as 'light' | 'dark';
+  });
   const [tabValue, setTabValue] = React.useState(0);
 
   const theme = React.useMemo(
